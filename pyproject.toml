@@ -5,19 +5,52 @@ build-backend = "maturin"
 [project]
 name = "discrete-dists"
 requires-python = ">=3.8"
+version = "0.0.0"
+authors = [
+    {name = "Andy Patterson", email = "andnpatterson@gmail.com"},
+]
+dependencies = [
+    "numpy>=1.23,<3.0"
+]
+
+
 classifiers = [
     "Programming Language :: Rust",
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dynamic = ["version"]
+
 [project.optional-dependencies]
 dev = [
     "pytest",
     "maturin",
     "pip",
+    "pytest-benchmark~=4.0",
+    "ruff",
+    "pyright",
+    "commitizen",
+    "pre-commit",
 ]
 
+[tool]
+[tool.commitizen]
+name = "cz_conventional_commits"
+version = "0.0.0"
+tag_format = "$version"
+version_files = ["pyproject.toml"]
+
 [tool.maturin]
-python-source = "python"
 features = ["pyo3/extension-module"]
+module-name = "discrete_dists.rust"
+
+[tool.ruff.lint]
+select = ['F', 'E', 'W']
+ignore = ['E501', 'E701']
+
+[tool.pyright]
+include = ["discrete_dists", "tests"]
+stubPath = "./typings"
+venvPath = "."
+venv = ".venv"
+typeCheckingMode = "standard"
+useLibraryCodeForTypes = true
