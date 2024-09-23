@@ -7,7 +7,7 @@ use bincode::{deserialize, serialize};
 use serde::{Deserialize, Serialize};
 
 #[pyclass(module = "rust", subclass)]
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 
 pub struct SumTree {
     #[pyo3(get)]
