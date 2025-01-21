@@ -6,42 +6,31 @@ class SumTree(ru.SumTree):
     def __new__(
         cls,
         size: int | None = None,
-        dims: int | None = None,
     ):
-        # when rebuilding from pickle, both args are none
-        # otherwise both args need to be specified
-        args = [size, dims]
+        args = [size]
         if args[0] is None:
-            assert args[1] is None
             args = []
 
         return super().__new__(cls, *args)
 
-    def __init__(self, size: int, dims: int):
+    def __init__(self, size: int):
         super().__init__()
-        self.u = np.ones(dims, dtype=np.float64)
 
-    def update(self, dim: int, idxs: Iterable[int], values: Iterable[float]):
+    def update(self, idxs: Iterable[int], values: Iterable[float]):
         a_idxs = np.asarray(idxs, dtype=np.int64)
         a_values = np.asarray(values, dtype=np.float64)
 
-        super().update(dim, a_idxs, a_values)
+        super().update(a_idxs, a_values)
 
-    def total(self, w: np.ndarray | None = None) -> float:
-        w = self._get_w(w)
-        return super().total(w)
-
-    def sample(self, rng: np.random.Generator, n: int, w: np.ndarray | None = None) -> np.ndarray:
-        w = self._get_w(w)
-        t = self.total(w)
+    def sample(self, rng: np.random.Generator, n: int) -> np.ndarray:
+        t = self.total()
         assert t > 0, "Cannot sample when the tree is empty or contains negative values"
 
         rs = rng.uniform(0, t, size=n)
-        return super().query(rs, w)
+        return self.query(rs)
 
-    def stratified_sample(self, rng: np.random.Generator, n: int, w: np.ndarray | None = None) -> np.ndarray:
-        w = self._get_w(w)
-        t = self.total(w)
+    def stratified_sample(self, rng: np.random.Generator, n: int) -> np.ndarray:
+        t = self.total()
         assert t > 0, "Cannot sample when the tree is empty or contains negative values"
 
         buckets = np.linspace(0., 1., n + 1)
@@ -49,12 +38,7 @@ class SumTree(ru.SumTree):
             rng.uniform(buckets[i], buckets[i + 1]) for i in range(n)
         ])
 
-        return super().query(values, w)
-
-    def _get_w(self, w: np.ndarray | None = None) -> np.ndarray:
-        if w is None:
-            return self.u
-        return w
+        return super().query(values)
 
     def __getstate__(self):
         return {

@@ -25,7 +25,7 @@ dev = [
     "pytest",
     "maturin",
     "pip",
-    "pytest-benchmark~=4.0",
+    "pytest-benchmark~=5.0",
     "ruff",
     "pyright",
     "commitizen",
