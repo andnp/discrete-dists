@@ -97,7 +97,8 @@ impl SumTree {
         let arr = self.raw[0]
             .select(Axis(0), &idxs.to_vec());
 
-            arr.to_pyarray(py)
+            // arr.to_pyarray(py)
+            arr.to_vec().to_pyarray(py)
     }
 
     pub fn total(
@@ -137,7 +138,7 @@ impl SumTree {
             });
 
         idxs = idxs.map(|i| { min(*i, (self.size - 1) as i64) });
-        idxs.to_pyarray(py)
+        idxs.to_vec().to_pyarray(py)
     }
 
     // enable pickling this data type
