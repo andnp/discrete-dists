@@ -1,3 +1,9 @@
+## 0.2.0 (2025-01-23)
+
+### Feat
+
+- allow updating uniform distribution support with single arg
+
 ## 0.1.2 (2025-01-23)
 
 ### Fix

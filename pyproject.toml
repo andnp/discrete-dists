@@ -5,7 +5,7 @@ build-backend = "maturin"
 [project]
 name = "discrete-dists"
 requires-python = ">=3.8"
-version = "0.1.2"
+version = "0.2.0"
 authors = [
     {name = "Andy Patterson", email = "andnpatterson@gmail.com"},
 ]
@@ -35,7 +35,7 @@ dev = [
 [tool]
 [tool.commitizen]
 name = "cz_conventional_commits"
-version = "0.1.2"
+version = "0.2.0"
 tag_format = "$version"
 version_files = ["pyproject.toml"]
 
