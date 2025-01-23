@@ -1,3 +1,9 @@
+## 0.2.2 (2025-01-23)
+
+### Fix
+
+- use first build for release immediately following tagging
+
 ## 0.2.1 (2025-01-23)
 
 ### Fix
