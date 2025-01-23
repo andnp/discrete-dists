@@ -19,6 +19,7 @@ permissions:
 
 jobs:
   linux:
+    if: ${{ !startsWith(github.event.head_commit.message, 'bump:') }}
     runs-on: ${{ matrix.platform.runner }}
     strategy:
       matrix:
@@ -46,6 +47,7 @@ jobs:
           path: dist
 
   windows:
+    if: ${{ !startsWith(github.event.head_commit.message, 'bump:') }}
     runs-on: ${{ matrix.platform.runner }}
     strategy:
       matrix:
@@ -73,6 +75,7 @@ jobs:
           path: dist
 
   macos:
+    if: ${{ !startsWith(github.event.head_commit.message, 'bump:') }}
     runs-on: ${{ matrix.platform.runner }}
     strategy:
       matrix:
@@ -97,6 +100,7 @@ jobs:
           path: dist
 
   sdist:
+    if: ${{ !startsWith(github.event.head_commit.message, 'bump:') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
