@@ -1,3 +1,9 @@
+## 0.2.3 (2025-01-23)
+
+### Fix
+
+- dont skip release if tag was successfully run
+
 ## 0.2.2 (2025-01-23)
 
 ### Fix
