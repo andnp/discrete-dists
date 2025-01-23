@@ -40,6 +40,7 @@ class MixtureDistribution(Distribution):
             out[total:next_t] = d.sample(rng, count)
             total = next_t
 
+        rng.shuffle(out)
         return out
 
     def stratified_sample(self, rng: np.random.Generator, n: int):
@@ -54,6 +55,7 @@ class MixtureDistribution(Distribution):
             out[total:next_t] = d.stratified_sample(rng, count)
             total = next_t
 
+        rng.shuffle(out)
         return out
 
     def update(self, idxs: np.ndarray, values: np.ndarray):
