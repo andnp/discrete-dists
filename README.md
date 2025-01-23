@@ -35,7 +35,7 @@ items = [0, 3, 8]
 isrs = u.isr(other, items)
 
 # updating the support
-u.update([150], [])
+u.update_single(150)
 ```
 
 ### Proportional Distribution
