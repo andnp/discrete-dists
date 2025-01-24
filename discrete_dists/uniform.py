@@ -2,19 +2,29 @@ from typing import overload
 import numpy as np
 import numpy.typing as npt
 import discrete_dists.utils.npu as npu
-from discrete_dists.distribution import Distribution
+from discrete_dists.distribution import Distribution, Support
 
 
 class Uniform(Distribution):
-    def __init__(self, support: int):
-        self._support = support
+    def __init__(self, support: Support | int):
+        if isinstance(support, int):
+            support = (0, support)
 
+        self._support: Support = support
+
+
+    # ------------------------
+    # -- Changes to support --
+    # ------------------------
     @overload
     def update(self, idxs: np.ndarray) -> None: ...
     @overload
     def update(self, idxs: np.ndarray, values: np.ndarray) -> None: ...
     def update(self, idxs: np.ndarray, values: np.ndarray | None = None):
-        self._support = max(self._support, idxs.max())
+        self._support = (
+            min(self._support[0], idxs.min()),
+            max(self._support[1], idxs.max())
+        )
 
 
     @overload
@@ -22,19 +32,26 @@ class Uniform(Distribution):
     @overload
     def update_single(self, idx: int, value: float) -> None: ...
     def update_single(self, idx: int, value: float = 0):
-        self._support = max(self._support, idx)
+        self._support = (
+            min(self._support[0], idx),
+            max(self._support[1], idx),
+        )
 
 
+    # --------------
+    # -- Samplers --
+    # --------------
     def sample(self, rng: np.random.Generator, n: int):
         if self._support == 1:
             return np.zeros(n, dtype=np.int64)
 
-        return rng.integers(0, self._support, size=n)
+        return rng.integers(*self._support, size=n)
 
 
     def stratified_sample(self, rng: np.random.Generator, n: int):
-        return npu.stratified_sample_integers(rng, n, self._support)
+        return npu.stratified_sample_integers(rng, n, *self._support)
 
 
     def probs(self, idxs: npt.ArrayLike):
-        return np.full_like(idxs, fill_value=(1 / self._support), dtype=np.float64)
+        d = self._support[1] - self._support[0]
+        return np.full_like(idxs, fill_value=(1 / d), dtype=np.float64)

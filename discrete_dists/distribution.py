@@ -6,6 +6,9 @@ import logging
 logger = logging.getLogger('discrete_dists')
 
 
+Support = tuple[int, int]
+
+
 class Distribution(ABC):
     @abstractmethod
     def probs(self, idxs: np.ndarray) -> np.ndarray: ...
