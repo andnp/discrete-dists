@@ -28,4 +28,12 @@ jobs:
 
       - run: echo "$PWD/.venv/bin" >> $GITHUB_PATH
 
+      # linting
+      - uses: astral-sh/ruff-action@v1
+
+      # type checking
+      - uses: jakebailey/pyright-action@v2
+        with:
+          pylance-version: latest-release
+
       - run: pytest tests/
