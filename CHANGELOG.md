@@ -1,3 +1,28 @@
+## 1.0.0 (2025-01-24)
+
+### BREAKING CHANGE
+
+- change the external API to use the term `elements`
+when referring to things in the support of the distribution.
+- technically this isn't a strict breaking change (it is
+fully backwards compatible); however the intended semantics of the
+library's usage are changing in this commit, plus we _want_ to move to
+v1, so it seems appropriate.
+
+### Feat
+
+- add public facing methods to change dist support
+- allow proportional dist to have shifted support
+- define uniform distributions as having lo and hi support bounds
+
+### Fix
+
+- convert set to intermediate list before making array
+
+### Refactor
+
+- change idxs -> elements
+
 ## 0.2.3 (2025-01-23)
 
 ### Fix
