@@ -45,3 +45,9 @@ class Proportional(Distribution):
     def update_single(self, idx: int, value: float):
         idx = idx - self._support[0]
         self.tree.update_single(idx, value)
+
+    def update_support(self, support: Support | int):
+        if isinstance(support, int):
+            self._support = (0, support)
+        else:
+            self._support = support

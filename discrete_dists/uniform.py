@@ -38,11 +38,18 @@ class Uniform(Distribution):
         )
 
 
+    def update_support(self, support: Support | int):
+        if isinstance(support, int):
+            self._support = (0, support)
+        else:
+            self._support = support
+
+
     # --------------
     # -- Samplers --
     # --------------
     def sample(self, rng: np.random.Generator, n: int):
-        if self._support == 1:
+        if self._support == (0, 1):
             return np.zeros(n, dtype=np.int64)
 
         return rng.integers(*self._support, size=n)
