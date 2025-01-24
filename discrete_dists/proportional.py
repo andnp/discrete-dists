@@ -14,15 +14,15 @@ class Proportional(Distribution):
     # ---------------
     # -- Accessing --
     # ---------------
-    def probs(self, idxs: np.ndarray) -> np.ndarray:
-        idxs = np.asarray(idxs)
-        idxs = idxs - self._support[0]
+    def probs(self, elements: np.ndarray) -> np.ndarray:
+        elements = np.asarray(elements)
+        elements = elements - self._support[0]
 
         t = self.tree.total()
         if t == 0:
-            return np.zeros(len(idxs))
+            return np.zeros(len(elements))
 
-        v = self.tree.get_values(idxs)
+        v = self.tree.get_values(elements)
         return v / t
 
 
@@ -38,13 +38,13 @@ class Proportional(Distribution):
     # --------------
     # -- Updating --
     # --------------
-    def update(self, idxs: np.ndarray, values: np.ndarray):
-        idxs = idxs - self._support[0]
-        self.tree.update(idxs, values)
+    def update(self, elements: np.ndarray, values: np.ndarray):
+        elements = elements - self._support[0]
+        self.tree.update(elements, values)
 
-    def update_single(self, idx: int, value: float):
-        idx = idx - self._support[0]
-        self.tree.update_single(idx, value)
+    def update_single(self, element: int, value: float):
+        element = element - self._support[0]
+        self.tree.update_single(element, value)
 
     def update_support(self, support: Support | int):
         if isinstance(support, int):

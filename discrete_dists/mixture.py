@@ -23,19 +23,19 @@ class MixtureDistribution(Distribution):
         assert np.isclose(self._weights.sum(), 1)
 
 
-    def probs(self, idxs: np.ndarray):
-        sub = np.array([d.probs(idxs) for d in self.dists])
+    def probs(self, elements: np.ndarray):
+        sub = np.array([d.probs(elements) for d in self.dists])
         p = self._weights.dot(sub)
         return p
 
     def sample(self, rng: np.random.Generator, n: int):
         out = np.empty(n, dtype=np.int64)
         subs = rng.choice(len(self.dists), size=n, replace=True, p=self._weights)
-        idxs, counts = np.unique(subs, return_counts=True)
+        elements, counts = np.unique(subs, return_counts=True)
 
         total = 0
-        for idx, count in zip(idxs, counts, strict=True):
-            d = self.dists[int(idx)]
+        for element, count in zip(elements, counts, strict=True):
+            d = self.dists[int(element)]
             next_t = total + count
             out[total:next_t] = d.sample(rng, count)
             total = next_t
@@ -46,11 +46,11 @@ class MixtureDistribution(Distribution):
     def stratified_sample(self, rng: np.random.Generator, n: int):
         out = np.empty(n, dtype=np.int64)
         subs = rng.choice(len(self.dists), size=n, replace=True, p=self._weights)
-        idxs, counts = np.unique(subs, return_counts=True)
+        elements, counts = np.unique(subs, return_counts=True)
 
         total = 0
-        for idx, count in zip(idxs, counts, strict=True):
-            d = self.dists[int(idx)]
+        for element, count in zip(elements, counts, strict=True):
+            d = self.dists[int(element)]
             next_t = total + count
             out[total:next_t] = d.stratified_sample(rng, count)
             total = next_t
@@ -58,10 +58,10 @@ class MixtureDistribution(Distribution):
         rng.shuffle(out)
         return out
 
-    def update(self, idxs: np.ndarray, values: np.ndarray):
+    def update(self, elements: np.ndarray, values: np.ndarray):
         for d in self.dists:
-            d.update(idxs, values)
+            d.update(elements, values)
 
-    def update_single(self, idx: int, value: float):
+    def update_single(self, element: int, value: float):
         for d in self.dists:
-            d.update_single(idx, value)
+            d.update_single(element, value)

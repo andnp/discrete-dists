@@ -17,24 +17,24 @@ class Uniform(Distribution):
     # -- Changes to support --
     # ------------------------
     @overload
-    def update(self, idxs: np.ndarray) -> None: ...
+    def update(self, elements: np.ndarray) -> None: ...
     @overload
-    def update(self, idxs: np.ndarray, values: np.ndarray) -> None: ...
-    def update(self, idxs: np.ndarray, values: np.ndarray | None = None):
+    def update(self, elements: np.ndarray, values: np.ndarray) -> None: ...
+    def update(self, elements: np.ndarray, values: np.ndarray | None = None):
         self._support = (
-            min(self._support[0], idxs.min()),
-            max(self._support[1], idxs.max())
+            min(self._support[0], elements.min()),
+            max(self._support[1], elements.max())
         )
 
 
     @overload
-    def update_single(self, idx: int) -> None: ...
+    def update_single(self, element: int) -> None: ...
     @overload
-    def update_single(self, idx: int, value: float) -> None: ...
-    def update_single(self, idx: int, value: float = 0):
+    def update_single(self, element: int, value: float) -> None: ...
+    def update_single(self, element: int, value: float = 0):
         self._support = (
-            min(self._support[0], idx),
-            max(self._support[1], idx),
+            min(self._support[0], element),
+            max(self._support[1], element),
         )
 
 
@@ -59,6 +59,6 @@ class Uniform(Distribution):
         return npu.stratified_sample_integers(rng, n, *self._support)
 
 
-    def probs(self, idxs: npt.ArrayLike):
+    def probs(self, elements: npt.ArrayLike):
         d = self._support[1] - self._support[0]
-        return np.full_like(idxs, fill_value=(1 / d), dtype=np.float64)
+        return np.full_like(elements, fill_value=(1 / d), dtype=np.float64)
