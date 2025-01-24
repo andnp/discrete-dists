@@ -6,15 +6,18 @@ import logging
 logger = logging.getLogger('discrete_dists')
 
 
+Support = tuple[int, int]
+
+
 class Distribution(ABC):
     @abstractmethod
-    def probs(self, idxs: np.ndarray) -> np.ndarray: ...
+    def probs(self, elements: np.ndarray) -> np.ndarray: ...
 
     @abstractmethod
-    def update(self, idxs: np.ndarray, values: np.ndarray) -> None: ...
+    def update(self, elements: np.ndarray, values: np.ndarray) -> None: ...
 
     @abstractmethod
-    def update_single(self, idx: int, value: float) -> None: ...
+    def update_single(self, element: int, value: float) -> None: ...
 
     @abstractmethod
     def sample(self, rng: np.random.Generator, n: int) -> np.ndarray: ...
@@ -22,8 +25,8 @@ class Distribution(ABC):
     @abstractmethod
     def stratified_sample(self, rng: np.random.Generator, n: int) -> np.ndarray: ...
 
-    def isr(self, target: Distribution, idxs: np.ndarray):
-        return target.probs(idxs) / self.probs(idxs)
+    def isr(self, target: Distribution, elements: np.ndarray):
+        return target.probs(elements) / self.probs(elements)
 
     def sample_without_replacement(
         self,
@@ -31,12 +34,12 @@ class Distribution(ABC):
         n: int,
         attempts: int = 25,
     ) -> np.ndarray:
-        idxs = self.sample(rng, n)
+        elements = self.sample(rng, n)
 
         # fastpath for the common case that the first sample is already unique
-        uniq = set(idxs)
+        uniq = set(elements)
         if len(uniq) == n:
-            return idxs
+            return elements
 
         for _ in range(attempts):
             needed = n - len(uniq)
@@ -50,5 +53,5 @@ class Distribution(ABC):
             logger.warning(f"Failed to get <{n}> required unique samples. Got <{len(uniq)}>")
 
         cutoff = min(n, len(uniq))
-        out = np.array(uniq, dtype=np.int64)[:cutoff]
+        out = np.array(list(uniq), dtype=np.int64)[:cutoff]
         return out
