@@ -50,5 +50,5 @@ class Distribution(ABC):
             logger.warning(f"Failed to get <{n}> required unique samples. Got <{len(uniq)}>")
 
         cutoff = min(n, len(uniq))
-        out = np.array(uniq, dtype=np.int64)[:cutoff]
+        out = np.array(list(uniq), dtype=np.int64)[:cutoff]
         return out
