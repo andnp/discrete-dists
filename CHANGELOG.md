@@ -1,3 +1,9 @@
+## 1.0.1 (2025-01-26)
+
+### Fix
+
+- scale stratification buckets to total size of sumtree
+
 ## 1.0.0 (2025-01-24)
 
 ### BREAKING CHANGE
