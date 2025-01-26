@@ -14,8 +14,40 @@ permissions:
   contents: read
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      # setup the repository
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: 3.12
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - run: |
+          uv venv
+          uv pip compile --extra=dev pyproject.toml -o requirements.txt
+          uv pip sync requirements.txt
+          source .venv/bin/activate
+          maturin develop --release
+
+      - run: echo "$PWD/.venv/bin" >> $GITHUB_PATH
+
+      # linting
+      - uses: astral-sh/ruff-action@v1
+
+      # type checking
+      - uses: jakebailey/pyright-action@v2
+        with:
+          pylance-version: latest-release
+
+      - run: pytest tests/
+
   linux:
     runs-on: ${{ matrix.platform.runner }}
+    needs: [test]
     strategy:
       matrix:
         platform:
@@ -43,6 +75,7 @@ jobs:
 
   windows:
     runs-on: ${{ matrix.platform.runner }}
+    needs: [test]
     strategy:
       matrix:
         platform:
@@ -70,6 +103,7 @@ jobs:
 
   macos:
     runs-on: ${{ matrix.platform.runner }}
+    needs: [test]
     strategy:
       matrix:
         platform:
