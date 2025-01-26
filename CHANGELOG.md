@@ -1,3 +1,9 @@
+## 1.0.2 (2025-01-26)
+
+### Fix
+
+- ensure updating uniform support is right inclusive
+
 ## 1.0.1 (2025-01-26)
 
 ### Fix
