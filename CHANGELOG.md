@@ -1,3 +1,9 @@
+## 1.0.3 (2025-01-26)
+
+### Fix
+
+- fix uniform idx updating semantics
+
 ## 1.0.2 (2025-01-26)
 
 ### Fix
