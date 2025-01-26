@@ -11,7 +11,7 @@ permissions:
 jobs:
   tag:
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && !startsWith(github.event.head_commit.message, 'bump:')
     steps:
       - name: Generate a token
         id: generate-token
