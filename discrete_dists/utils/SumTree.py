@@ -38,7 +38,7 @@ class SumTree(ru.SumTree):
             rng.uniform(buckets[i], buckets[i + 1]) for i in range(n)
         ])
 
-        return super().query(values)
+        return self.query(t * values)
 
     def __getstate__(self):
         return {

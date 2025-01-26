@@ -75,3 +75,21 @@ def test_shifted_support(rng):
     ) and np.all(
         counts < (expected_count + thresh)
     )
+
+
+def test_proportional_stratified1(rng):
+    p = Proportional(100)
+    p.update(
+        np.arange(10),
+        np.ones(10),
+    )
+
+    p.update(
+        20 + np.arange(10),
+        np.ones(10),
+    )
+
+    data = p.stratified_sample(rng, 5)
+    _, counts = np.unique(data, return_counts=True)
+
+    assert np.all(counts == 1)
