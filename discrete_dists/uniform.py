@@ -32,7 +32,7 @@ class Uniform(Distribution):
         """
         self._support = (
             min(self._support[0], elements.min()),
-            max(self._support[1], elements.max())
+            max(self._support[1], elements.max() + 1)
         )
 
 
@@ -47,7 +47,7 @@ class Uniform(Distribution):
         """
         self._support = (
             min(self._support[0], element),
-            max(self._support[1], element),
+            max(self._support[1], element + 1),
         )
 
 
