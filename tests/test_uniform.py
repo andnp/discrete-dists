@@ -30,7 +30,7 @@ def test_uniform2(rng):
 
 def test_uniform_update(rng):
     u = Uniform(10)
-    u.update(np.array([1, 2, 4, 8, 20]))
+    u.update(np.array([1, 2, 4, 8, 19]))
 
     data = u.sample(rng, 10000)
     vals, counts = np.unique(data, return_counts=True)
