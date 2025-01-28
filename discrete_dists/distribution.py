@@ -1,5 +1,5 @@
 from __future__ import annotations
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 import numpy as np
 import logging
 
@@ -9,15 +9,9 @@ logger = logging.getLogger('discrete_dists')
 Support = tuple[int, int]
 
 
-class Distribution(ABC):
+class Distribution:
     @abstractmethod
     def probs(self, elements: np.ndarray) -> np.ndarray: ...
-
-    @abstractmethod
-    def update(self, elements: np.ndarray, values: np.ndarray) -> None: ...
-
-    @abstractmethod
-    def update_single(self, element: int, value: float) -> None: ...
 
     @abstractmethod
     def sample(self, rng: np.random.Generator, n: int) -> np.ndarray: ...

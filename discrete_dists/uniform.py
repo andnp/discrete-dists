@@ -1,4 +1,3 @@
-from typing import overload
 import numpy as np
 import numpy.typing as npt
 import discrete_dists.utils.npu as npu
@@ -21,11 +20,7 @@ class Uniform(Distribution):
     # ------------------------
     # -- Changes to support --
     # ------------------------
-    @overload
-    def update(self, elements: np.ndarray) -> None: ...
-    @overload
-    def update(self, elements: np.ndarray, values: np.ndarray) -> None: ...
-    def update(self, elements: np.ndarray, values: np.ndarray | None = None):
+    def update(self, elements: np.ndarray) -> None:
         """
         Update the support of the distribution to cover the
         given elements if these are outside the current support.
@@ -36,11 +31,7 @@ class Uniform(Distribution):
         )
 
 
-    @overload
-    def update_single(self, element: int) -> None: ...
-    @overload
-    def update_single(self, element: int, value: float) -> None: ...
-    def update_single(self, element: int, value: float = 0):
+    def update_single(self, element: int) -> None:
         """
         Update the support of the distribution to cover the
         given element if it is outside the current support.

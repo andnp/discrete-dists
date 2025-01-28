@@ -85,19 +85,3 @@ class MixtureDistribution(Distribution):
 
         rng.shuffle(out)
         return out
-
-    def update(self, elements: np.ndarray, values: np.ndarray):
-        """
-        Update all underlying sub-distributions at the given
-        elements with the given values.
-        """
-        for d in self.dists:
-            d.update(elements, values)
-
-    def update_single(self, element: int, value: float):
-        """
-        Update all underlying sub-distributions at the given
-        element with the given value.
-        """
-        for d in self.dists:
-            d.update_single(element, value)
