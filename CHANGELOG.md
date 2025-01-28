@@ -1,3 +1,13 @@
+## 1.1.0 (2025-01-28)
+
+### Feat
+
+- allow sampling from mixture dist with defunct subdists
+
+### Fix
+
+- heavily simplify required interface for distribution
+
 ## 1.0.3 (2025-01-26)
 
 ### Fix
