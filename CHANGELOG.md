@@ -1,3 +1,9 @@
+## 1.1.1 (2025-01-28)
+
+### Fix
+
+- add special case handling for proportional and uniform dists
+
 ## 1.1.0 (2025-01-28)
 
 ### Feat
