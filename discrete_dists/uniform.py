@@ -83,3 +83,8 @@ class Uniform(Distribution):
         """
         d = self._support[1] - self._support[0]
         return np.full_like(elements, fill_value=(1 / d), dtype=np.float64)
+
+
+    @property
+    def is_defunct(self) -> bool:
+        return self._support[0] == self._support[1]

@@ -49,3 +49,8 @@ class Distribution:
         cutoff = min(n, len(uniq))
         out = np.array(list(uniq), dtype=np.int64)[:cutoff]
         return out
+
+
+    @property
+    def is_defunct(self) -> bool:
+        return False

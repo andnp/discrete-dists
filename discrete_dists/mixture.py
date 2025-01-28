@@ -49,7 +49,8 @@ class MixtureDistribution(Distribution):
         probabilities.
         """
         out = np.empty(n, dtype=np.int64)
-        subs = rng.choice(len(self.dists), size=n, replace=True, p=self._weights)
+        idxs, weights = self.filter_defunct()
+        subs = rng.choice(idxs, size=n, replace=True, p=weights)
         elements, counts = np.unique(subs, return_counts=True)
 
         total = 0
@@ -73,7 +74,8 @@ class MixtureDistribution(Distribution):
         will be evenly spaced within that distribution.
         """
         out = np.empty(n, dtype=np.int64)
-        subs = rng.choice(len(self.dists), size=n, replace=True, p=self._weights)
+        idxs, weights = self.filter_defunct()
+        subs = rng.choice(idxs, size=n, replace=True, p=weights)
         elements, counts = np.unique(subs, return_counts=True)
 
         total = 0
@@ -85,3 +87,24 @@ class MixtureDistribution(Distribution):
 
         rng.shuffle(out)
         return out
+
+
+    def filter_defunct(self):
+        """
+        Remove any defunct distributions from the mixture, where
+        a defunct distribution is defined as having zero support.
+        """
+
+        # fastpath for the common case that there are no defunct distributions
+        if all(not d.is_defunct for d in self.dists):
+            return np.arange(len(self.dists)), self._weights
+
+
+        dist_idxs = np.array([
+            i for i, d in enumerate(self.dists)
+            if not d.is_defunct
+        ])
+
+        reweighted = self._weights[dist_idxs]
+        reweighted /= reweighted.sum()
+        return dist_idxs, reweighted

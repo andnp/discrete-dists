@@ -49,6 +49,11 @@ class Proportional(Distribution):
         return v / t
 
 
+    @property
+    def is_defunct(self) -> bool:
+        return self.tree.total() == 0
+
+
     # --------------
     # -- Sampling --
     # --------------
