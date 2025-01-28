@@ -4,6 +4,8 @@ from typing import Sequence
 import numpy as np
 
 from discrete_dists.distribution import Distribution
+from discrete_dists.proportional import Proportional
+from discrete_dists.uniform import Uniform
 
 @dataclass
 class SubDistribution:
@@ -108,3 +110,14 @@ class MixtureDistribution(Distribution):
         reweighted = self._weights[dist_idxs]
         reweighted /= reweighted.sum()
         return dist_idxs, reweighted
+
+    def update(self, elements: np.ndarray, values: np.ndarray):
+        """
+        Update the the proportion values for a given set
+        of elements. This changes the shape of the distribution.
+        """
+        for d in self.dists:
+            if isinstance(d, Proportional):
+                d.update(elements, values)
+            elif isinstance(d, Uniform):
+                d.update(elements)
