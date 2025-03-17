@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "discrete-dists"
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 version = "1.1.1"
 authors = [
     {name = "Andy Patterson", email = "andnpatterson@gmail.com"},
@@ -64,3 +64,8 @@ venvPath = "."
 venv = ".venv"
 typeCheckingMode = "standard"
 useLibraryCodeForTypes = true
+
+[dependency-groups]
+dev = [
+    "pip>=25.0.1",
+]
