@@ -3,7 +3,7 @@ use ndarray::{Array1, Axis};
 use std::iter;
 use std::cmp::*;
 use pyo3::{prelude::*, types::{PyBytes, PyTuple}};
-use bincode::{deserialize, serialize};
+use bincode::serde::{decode_from_slice, encode_to_vec};
 use serde::{Deserialize, Serialize};
 
 #[pyclass(module = "rust", subclass)]
@@ -143,10 +143,10 @@ impl SumTree {
 
     // enable pickling this data type
     pub fn __setstate__<'py>(&mut self, state: Bound<'py, PyBytes>) -> PyResult<()> {
-        *self = deserialize(state.as_bytes()).unwrap();
+        *self = decode_from_slice(state.as_bytes(), bincode::config::standard()).unwrap().0;
         Ok(())
     }
     pub fn __getstate__<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
-        Ok(PyBytes::new(py, &serialize(&self).unwrap()))
+        Ok(PyBytes::new(py, &encode_to_vec(&self, bincode::config::standard()).unwrap()))
     }
 }
