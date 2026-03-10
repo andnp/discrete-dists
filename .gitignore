@@ -2,6 +2,10 @@
 requirements.txt
 Cargo.lock
 
+.codanna
+.codannaignore
+.fastembed_cache
+
 /target
 
 # Byte-compiled / optimized / DLL files
