@@ -75,3 +75,12 @@ def test_uniform_probs_defunct():
     probs = u.probs(np.array([0, 1, 2]))
 
     assert np.allclose(probs, np.zeros(3))
+
+
+def test_uniform_sample_matches_probs(rng):
+    u = Uniform(5)
+
+    data = u.sample(rng, 20000)
+    empirical = np.bincount(data, minlength=5) / len(data)
+
+    assert np.allclose(empirical, u.probs(np.arange(5)), atol=0.02)
