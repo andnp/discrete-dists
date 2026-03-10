@@ -174,6 +174,25 @@ impl SumTree {
             .len()
             .map_err(|_| PyValueError::new_err("failed to get query array length"))?;
 
+        if let Ok(values) = v.as_slice() {
+            let mut totals = Array1::<f64>::zeros(n);
+            let mut idxs = Array1::<i64>::zeros(n);
+
+            for layer in self.raw.iter().rev() {
+                for j in 0..n {
+                    idxs[j] = idxs[j] * 2;
+                    let left = layer[idxs[j] as usize];
+
+                    let m = left < (values[j] - totals[j]);
+                    totals[j] += if m { left } else { 0. };
+                    idxs[j] += if m { 1 } else { 0 };
+                }
+            }
+
+            idxs = idxs.map(|i| min(*i, (self.size - 1) as i64));
+            return Ok(idxs.to_vec().to_pyarray(py));
+        }
+
         let v = v.as_array();
         let mut totals = Array1::<f64>::zeros(n);
         let mut idxs = Array1::<i64>::zeros(n);
