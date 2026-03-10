@@ -59,3 +59,19 @@ def test_stratified_sample(rng):
 
     data = u.stratified_sample(rng, 5)
     assert len(data) == 5
+
+
+def test_uniform_probs_respect_support():
+    u = Uniform((10, 15))
+
+    probs = u.probs(np.array([9, 10, 12, 14, 15]))
+
+    assert np.allclose(probs, np.array([0.0, 0.2, 0.2, 0.2, 0.0]))
+
+
+def test_uniform_probs_defunct():
+    u = Uniform(0)
+
+    probs = u.probs(np.array([0, 1, 2]))
+
+    assert np.allclose(probs, np.zeros(3))

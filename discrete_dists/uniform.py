@@ -81,8 +81,15 @@ class Uniform(Distribution):
         Get the probabilities of the given elements
         under the current distribution.
         """
+        elements = np.asarray(elements)
         d = self._support[1] - self._support[0]
-        return np.full_like(elements, fill_value=(1 / d), dtype=np.float64)
+        if d == 0:
+            return np.zeros_like(elements, dtype=np.float64)
+
+        probs = np.zeros_like(elements, dtype=np.float64)
+        in_support = (elements >= self._support[0]) & (elements < self._support[1])
+        probs[in_support] = 1 / d
+        return probs
 
 
     @property
