@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use std::cmp::*;
 use std::iter;
 
-#[pyclass(module = "rust", subclass)]
+#[pyclass(module = "rust", subclass, skip_from_py_object)]
 #[derive(Serialize, Deserialize, Clone)]
 
 pub struct SumTree {
