@@ -76,6 +76,25 @@ class Uniform(Distribution):
         return npu.stratified_sample_integers(rng, n, *self._support)
 
 
+    def sample_without_replacement(
+        self,
+        rng: np.random.Generator,
+        n: int,
+        attempts: int = 25,
+    ) -> np.ndarray:
+        if n < 0:
+            raise ValueError(f"n must be nonnegative, got {n}")
+
+        size = self._support[1] - self._support[0]
+        if n > size:
+            raise ValueError(
+                f"cannot sample {n} unique elements from support of size {size}"
+            )
+
+        support = np.arange(self._support[0], self._support[1], dtype=np.int64)
+        return rng.choice(support, size=n, replace=False)
+
+
     def probs(self, elements: npt.ArrayLike):
         """
         Get the probabilities of the given elements

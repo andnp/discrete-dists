@@ -47,6 +47,12 @@ class Distribution:
         n: int,
         attempts: int = 25,
     ) -> np.ndarray:
+        if n < 0:
+            raise ValueError(f"n must be nonnegative, got {n}")
+
+        if n == 0:
+            return np.array([], dtype=np.int64)
+
         elements = self.sample(rng, n)
 
         # fastpath for the common case that the first sample is already unique
@@ -63,10 +69,12 @@ class Distribution:
                 break
 
         if len(uniq) < n:
-            logger.warning(f"Failed to get <{n}> required unique samples. Got <{len(uniq)}>")
+            raise ValueError(
+                f"could not sample {n} unique elements after {attempts + 1} attempts; "
+                f"only found {len(uniq)}"
+            )
 
-        cutoff = min(n, len(uniq))
-        out = np.array(list(uniq), dtype=np.int64)[:cutoff]
+        out = np.array(list(uniq), dtype=np.int64)[:n]
         return out
 
 

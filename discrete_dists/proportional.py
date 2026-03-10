@@ -78,6 +78,34 @@ class Proportional(Distribution):
         """
         return self.tree.stratified_sample(rng, n) + self._support[0]
 
+    def sample_without_replacement(
+        self,
+        rng: np.random.Generator,
+        n: int,
+        attempts: int = 25,
+    ) -> np.ndarray:
+        if n < 0:
+            raise ValueError(f"n must be nonnegative, got {n}")
+
+        width = self._support[1] - self._support[0]
+        if width == 0:
+            if n == 0:
+                return np.array([], dtype=np.int64)
+            raise ValueError("cannot sample from an empty proportional distribution")
+
+        offsets = np.arange(width, dtype=np.int64)
+        values = self.tree.get_values(offsets)
+        active = values > 0
+
+        if n > active.sum():
+            raise ValueError(
+                f"cannot sample {n} unique elements from {active.sum()} positive-mass elements"
+            )
+
+        support = offsets[active] + self._support[0]
+        probs = values[active] / values[active].sum()
+        return rng.choice(support, size=n, replace=False, p=probs)
+
     # --------------
     # -- Updating --
     # --------------
