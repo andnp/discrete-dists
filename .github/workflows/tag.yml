@@ -5,6 +5,10 @@ on:
     branches:
       - main
 
+concurrency:
+  group: tag-main
+  cancel-in-progress: false
+
 permissions:
   contents: read
 
@@ -23,12 +27,62 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
+          ref: refs/heads/main
           fetch-depth: 0
           token: ${{ steps.generate-token.outputs.token }}
 
-      - id: cz
-        name: Create bump commit, tag, and changelog
-        uses: commitizen-tools/commitizen-action@master
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          github_token: ${{ steps.generate-token.outputs.token }}
-          actor: x-access-token
+          python-version: '3.12'
+
+      - name: Install Commitizen
+        run: python -m pip install commitizen
+
+      - name: Configure Git author
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Refresh main and tags
+        run: |
+          git fetch origin refs/heads/main:refs/remotes/origin/main --tags --force
+          git checkout -B main refs/remotes/origin/main
+
+      - id: preflight
+        name: Detect pending release
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          output=$(cz --no-raise 21 bump --yes --changelog --dry-run || true)
+          echo "$output"
+
+          next_tag=$(printf '%s\n' "$output" | sed -n 's/^tag to create: //p' | tail -n 1)
+
+          if [[ -z "$next_tag" ]]; then
+            echo "release_needed=false" >> "$GITHUB_OUTPUT"
+            echo "No releasable commits found."
+            exit 0
+          fi
+
+          if git rev-parse -q --verify "refs/tags/$next_tag" >/dev/null; then
+            echo "release_needed=false" >> "$GITHUB_OUTPUT"
+            echo "next_tag=$next_tag" >> "$GITHUB_OUTPUT"
+            echo "Tag $next_tag already exists; treating this run as already released."
+            exit 0
+          fi
+
+          echo "release_needed=true" >> "$GITHUB_OUTPUT"
+          echo "next_tag=$next_tag" >> "$GITHUB_OUTPUT"
+
+      - name: Create bump commit, tag, and changelog
+        if: steps.preflight.outputs.release_needed == 'true'
+        run: cz --no-raise 21 bump --yes --changelog
+
+      - name: Push bump commit and tag atomically
+        if: steps.preflight.outputs.release_needed == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git push --atomic origin HEAD:main "refs/tags/${{ steps.preflight.outputs.next_tag }}"

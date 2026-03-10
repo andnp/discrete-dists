@@ -47,7 +47,7 @@ dev = [
 name = "cz_conventional_commits"
 version = "1.1.2"
 tag_format = "$version"
-version_files = ["pyproject.toml"]
+version_files = ["pyproject.toml", "Cargo.toml"]
 
 [tool.maturin]
 features = ["pyo3/extension-module"]
