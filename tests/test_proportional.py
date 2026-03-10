@@ -106,3 +106,15 @@ def test_proportional_sample_matches_probs(rng):
     empirical = np.bincount(data, minlength=3) / len(data)
 
     assert np.allclose(empirical, p.probs(np.arange(3)), atol=0.02)
+
+
+def test_proportional_probs_respect_support():
+    p = Proportional((10, 15))
+    p.update(
+        np.arange(10, 15),
+        np.ones(5),
+    )
+
+    probs = p.probs(np.array([9, 10, 12, 14, 15]))
+
+    assert np.allclose(probs, np.array([0.0, 0.2, 0.2, 0.2, 0.0]))
