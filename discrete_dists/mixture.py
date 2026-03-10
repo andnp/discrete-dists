@@ -39,8 +39,14 @@ class MixtureDistribution(Distribution):
         Get the probabilities of the given elements
         under the current distribution.
         """
-        sub = np.array([d.probs(elements) for d in self.dists])
-        p = self._weights.dot(sub)
+        elements = np.asarray(elements)
+        idxs, weights = self.filter_defunct()
+
+        if len(idxs) == 0:
+            return np.zeros(len(elements), dtype=np.float64)
+
+        sub = np.array([self.dists[int(i)].probs(elements) for i in idxs])
+        p = weights.dot(sub)
         return p
 
     def sample(self, rng: np.random.Generator, n: int):
@@ -105,7 +111,10 @@ class MixtureDistribution(Distribution):
         dist_idxs = np.array([
             i for i, d in enumerate(self.dists)
             if not d.is_defunct
-        ])
+        ], dtype=np.int64)
+
+        if len(dist_idxs) == 0:
+            return dist_idxs, np.array([], dtype=np.float64)
 
         reweighted = self._weights[dist_idxs]
         reweighted /= reweighted.sum()
