@@ -1,6 +1,5 @@
 # package lock files
 requirements.txt
-Cargo.lock
 
 .codanna
 .codannaignore
