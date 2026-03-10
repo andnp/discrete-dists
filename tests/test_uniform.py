@@ -54,6 +54,13 @@ def test_uniform_sample_wo_replace(rng):
         assert len(set(data)) == 5
 
 
+def test_uniform_sample_wo_replace_too_many(rng):
+    u = Uniform(3)
+
+    with pytest.raises(ValueError, match="support of size 3"):
+        u.sample_without_replacement(rng, 4)
+
+
 def test_stratified_sample(rng):
     u = Uniform(10)
 

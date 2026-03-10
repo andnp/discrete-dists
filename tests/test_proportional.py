@@ -108,6 +108,30 @@ def test_proportional_sample_matches_probs(rng):
     assert np.allclose(empirical, p.probs(np.arange(3)), atol=0.02)
 
 
+def test_proportional_sample_without_replacement(rng):
+    p = Proportional(5)
+    p.update(
+        np.arange(5),
+        np.array([1.0, 2.0, 3.0, 4.0, 5.0]),
+    )
+
+    data = p.sample_without_replacement(rng, 3)
+
+    assert len(data) == 3
+    assert len(set(data)) == 3
+
+
+def test_proportional_sample_without_replacement_too_many(rng):
+    p = Proportional(5)
+    p.update(
+        np.array([0, 2]),
+        np.array([1.0, 1.0]),
+    )
+
+    with pytest.raises(ValueError, match="positive-mass elements"):
+        p.sample_without_replacement(rng, 3)
+
+
 def test_proportional_probs_respect_support():
     p = Proportional((10, 15))
     p.update(
