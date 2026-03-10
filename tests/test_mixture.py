@@ -94,3 +94,17 @@ def test_mixture_stratified_sample_all_defunct(rng):
 
     with pytest.raises(ValueError, match="all-defunct mixture"):
         m.stratified_sample(rng, 1)
+
+
+def test_mixture_sample_matches_probs_with_defunct_children(rng):
+    m = MixtureDistribution([
+        SubDistribution(Uniform(5), p=0.5),
+        SubDistribution(Uniform(0), p=0.25),
+        SubDistribution(Proportional(10), p=0.25),
+    ])
+
+    support = np.arange(5)
+    data = m.sample(rng, 20000)
+    empirical = np.bincount(data, minlength=5) / len(data)
+
+    assert np.allclose(empirical, m.probs(support), atol=0.02)

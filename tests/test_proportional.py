@@ -93,3 +93,16 @@ def test_proportional_stratified1(rng):
     _, counts = np.unique(data, return_counts=True)
 
     assert np.all(counts == 1)
+
+
+def test_proportional_sample_matches_probs(rng):
+    p = Proportional(3)
+    p.update(
+        np.arange(3),
+        np.array([1.0, 2.0, 3.0]),
+    )
+
+    data = p.sample(rng, 20000)
+    empirical = np.bincount(data, minlength=3) / len(data)
+
+    assert np.allclose(empirical, p.probs(np.arange(3)), atol=0.02)
