@@ -3,11 +3,41 @@ name: Test
 on:
   push:
     branches: [ main ]
+    paths:
+      - '.github/workflows/test.yml'
+      - '.github/workflows/CI.yml'
+      - '.github/workflows/tag.yml'
+      - 'discrete_dists/**'
+      - 'rust/**'
+      - 'tests/**'
+      - 'pyproject.toml'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'requirements.txt'
   pull_request:
     branches: [ main ]
+    paths:
+      - '.github/workflows/test.yml'
+      - '.github/workflows/CI.yml'
+      - '.github/workflows/tag.yml'
+      - 'discrete_dists/**'
+      - 'rust/**'
+      - 'tests/**'
+      - 'pyproject.toml'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'requirements.txt'
+
+concurrency:
+  group: test-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
   linux:
+    if: github.event_name != 'push' || !startsWith(github.event.head_commit.message, 'bump:')
     runs-on: ubuntu-latest
     steps:
       # setup the repository

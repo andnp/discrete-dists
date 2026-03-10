@@ -11,13 +11,16 @@ This repository currently verifies cleanly with the following local sequence:
 ## Current workflow review
 
 - `.github/workflows/test.yml`
-  - runs on pushes to `main` and pull requests targeting `main`
+  - runs on pushes to `main` and pull requests targeting `main` only when code, tests, dependency manifests, or workflow files change
+  - cancels superseded in-progress runs for the same branch or PR
   - sets up Python 3.12, installs the project with `uv`, builds the Rust extension with `maturin develop --release`, then runs Ruff, Pyright, and pytest
 - `.github/workflows/CI.yml`
   - runs on tags
   - repeats the test job before building wheels/sdist and uploading to PyPI
+  - builds wheel artifacts explicitly for Python 3.12, 3.13, and 3.14 across the supported OS/arch matrix
 - `.github/workflows/tag.yml`
   - runs on pushes to `main`
+  - uses `ubuntu-slim` because it only needs lightweight git/Python release automation
   - serializes release runs with a `concurrency` group so overlapping pushes do not compute the same next tag
   - checks out the latest `main` tip and refreshes tags before calculating a release
   - repairs `main` if an earlier release tag exists without the corresponding version/changelog commit on the branch
