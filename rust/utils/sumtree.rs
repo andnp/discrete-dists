@@ -124,7 +124,7 @@ impl SumTree {
             })
             .collect::<PyResult<Vec<_>>>()?;
 
-        py.allow_threads(|| {
+        py.detach(|| {
             for (checked_idx, value) in validated {
                 self.set_validated_value(checked_idx, value);
             }
@@ -156,7 +156,7 @@ impl SumTree {
             .map(|idx| self.checked_index(*idx))
             .collect::<PyResult<Vec<_>>>()?;
 
-        let values = py.allow_threads(|| self.raw[0].select(Axis(0), &idxs).to_vec());
+        let values = py.detach(|| self.raw[0].select(Axis(0), &idxs).to_vec());
 
         Ok(values.to_pyarray(py))
     }
