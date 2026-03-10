@@ -111,3 +111,9 @@ def test_isr_zero_source_probability():
     assert ratios[0] == pytest.approx(0.5)
     assert ratios[1] == np.inf
     assert np.isnan(ratios[2])
+
+
+def test_uniform_probs_sum_to_one_over_support():
+    u = Uniform((10, 15))
+
+    assert u.probs(np.arange(10, 15)).sum() == pytest.approx(1.0)
