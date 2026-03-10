@@ -84,3 +84,23 @@ def test_uniform_sample_matches_probs(rng):
     empirical = np.bincount(data, minlength=5) / len(data)
 
     assert np.allclose(empirical, u.probs(np.arange(5)), atol=0.02)
+
+
+def test_isr_within_support():
+    source = Uniform(10)
+    target = Uniform(5)
+
+    ratios = source.isr(target, np.array([0, 1, 4]))
+
+    assert np.allclose(ratios, np.array([2.0, 2.0, 2.0]))
+
+
+def test_isr_zero_source_probability():
+    source = Uniform(5)
+    target = Uniform(10)
+
+    ratios = source.isr(target, np.array([4, 8, 20]))
+
+    assert ratios[0] == pytest.approx(0.5)
+    assert ratios[1] == np.inf
+    assert np.isnan(ratios[2])

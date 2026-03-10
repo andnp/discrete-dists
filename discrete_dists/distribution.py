@@ -20,7 +20,26 @@ class Distribution:
     def stratified_sample(self, rng: np.random.Generator, n: int) -> np.ndarray: ...
 
     def isr(self, target: Distribution, elements: np.ndarray):
-        return target.probs(elements) / self.probs(elements)
+        """
+        Compute importance sampling ratios from this distribution to `target`.
+
+        For each queried element `x`, this returns `target.probs(x) / self.probs(x)`.
+        The ratio is only well-defined when `self.probs(x) > 0`, which is the
+        typical case when `elements` were sampled from `self`.
+
+        If `self.probs(x) == 0` and `target.probs(x) > 0`, the returned ratio is
+        `np.inf` to signal a support mismatch. If both probabilities are zero,
+        the returned ratio is `np.nan` because the ratio is undefined.
+        """
+        elements = np.asarray(elements)
+        source_probs = self.probs(elements)
+        target_probs = target.probs(elements)
+
+        ratios = np.full_like(target_probs, np.nan, dtype=np.float64)
+        supported = source_probs > 0
+        ratios[supported] = target_probs[supported] / source_probs[supported]
+        ratios[~supported & (target_probs > 0)] = np.inf
+        return ratios
 
     def sample_without_replacement(
         self,
