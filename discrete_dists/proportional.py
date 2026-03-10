@@ -128,9 +128,39 @@ class Proportional(Distribution):
     def update_support(self, support: Support | int):
         """
         Shift the entire distribution to be over a new support.
-        It is undefined behavior to change the width of the support.
+
+        If the new support has the same width as the current support, the
+        existing relative weights are shifted to the new interval.
+
+        If the new support is wider and fully contains the current support,
+        the existing absolute element weights are preserved and newly exposed
+        elements start with zero mass.
         """
         if isinstance(support, int):
-            self._support = (0, support)
-        else:
+            support = (0, support)
+
+        old_support = self._support
+        old_width = old_support[1] - old_support[0]
+        new_width = support[1] - support[0]
+
+        if new_width < old_width:
+            raise ValueError(
+                f"cannot shrink proportional support from width {old_width} to {new_width}"
+            )
+
+        if new_width == old_width:
             self._support = support
+            return
+
+        if support[0] > old_support[0] or support[1] < old_support[1]:
+            raise ValueError(
+                "widened support must contain the existing support in order to preserve weights"
+            )
+
+        values = self.tree.get_values(np.arange(old_width, dtype=np.int64))
+        new_tree = SumTree(new_width)
+        offset = old_support[0] - support[0]
+        new_tree.update(offset + np.arange(old_width, dtype=np.int64), values)
+
+        self._support = support
+        self.tree = new_tree

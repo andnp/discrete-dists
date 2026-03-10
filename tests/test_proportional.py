@@ -142,3 +142,44 @@ def test_proportional_probs_respect_support():
     probs = p.probs(np.array([9, 10, 12, 14, 15]))
 
     assert np.allclose(probs, np.array([0.0, 0.2, 0.2, 0.2, 0.0]))
+
+
+def test_proportional_update_support_same_width_shift(rng):
+    p = Proportional(5)
+    p.update(
+        np.arange(5),
+        np.array([1.0, 2.0, 3.0, 4.0, 5.0]),
+    )
+
+    p.update_support((10, 15))
+
+    assert np.allclose(p.probs(np.arange(10, 15)), np.array([1, 2, 3, 4, 5]) / 15)
+
+
+def test_proportional_update_support_widen_preserves_absolute_weights():
+    p = Proportional((10, 15))
+    p.update(
+        np.arange(10, 15),
+        np.array([1.0, 2.0, 3.0, 4.0, 5.0]),
+    )
+
+    p.update_support((8, 17))
+
+    assert np.allclose(
+        p.probs(np.arange(8, 17)),
+        np.array([0.0, 0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 0.0, 0.0]) / 15,
+    )
+
+
+def test_proportional_update_support_rejects_shrink():
+    p = Proportional((10, 15))
+
+    with pytest.raises(ValueError, match="cannot shrink"):
+        p.update_support((10, 14))
+
+
+def test_proportional_update_support_rejects_ambiguous_widen():
+    p = Proportional((10, 15))
+
+    with pytest.raises(ValueError, match="must contain the existing support"):
+        p.update_support((12, 18))
