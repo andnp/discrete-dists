@@ -1,0 +1,47 @@
+# CI and local verification notes
+
+This repository currently verifies cleanly with the following local sequence:
+
+```bash
+.venv/bin/ruff check .
+.venv/bin/pyright
+.venv/bin/pytest -q
+```
+
+## Current workflow review
+
+- `.github/workflows/test.yml`
+  - runs on pushes to `main` and pull requests targeting `main`
+  - sets up Python 3.12, installs the project with `uv`, builds the Rust extension with `maturin develop --release`, then runs Ruff, Pyright, and pytest
+- `.github/workflows/CI.yml`
+  - runs on tags
+  - repeats the test job before building wheels/sdist and uploading to PyPI
+- `.github/workflows/tag.yml`
+  - runs on pushes to `main`
+  - uses Commitizen to create bump commits/tags/changelog entries
+
+## Observations
+
+- The checked-in workflows are consistent with the current project layout and passed local equivalents during this session.
+- `Cargo.toml` and `pyproject.toml` should stay version-synced; this was corrected in this branch.
+- When building locally outside the workflow, PyO3 can pick up a newer system Python if the environment is not pinned. Using the project `.venv` Python avoids that issue.
+
+## Recommended local build commands
+
+For local Rust extension rebuilds, prefer the project virtual environment:
+
+```bash
+PYO3_PYTHON=$PWD/.venv/bin/python .venv/bin/maturin develop --release
+```
+
+If PyO3 still resolves the wrong interpreter in a custom shell environment, explicitly set:
+
+```bash
+env -u CARGO \
+  PYO3_ENVIRONMENT_SIGNATURE='cpython-3.12-64bit' \
+  PYO3_PYTHON="$PWD/.venv/bin/python" \
+  PYTHON_SYS_EXECUTABLE="$PWD/.venv/bin/python" \
+  cargo rustc --features pyo3/extension-module --manifest-path Cargo.toml --lib
+```
+
+This manual `cargo rustc` form was useful during development for forcing the intended interpreter.
