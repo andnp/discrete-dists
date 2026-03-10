@@ -50,10 +50,47 @@ jobs:
           git checkout -B main refs/remotes/origin/main
 
       - id: preflight
-        name: Detect pending release
+        name: Detect pending release or repair
         shell: bash
         run: |
           set -euo pipefail
+
+          current_version=$(python - <<'PY'
+          import tomllib
+
+          with open("pyproject.toml", "rb") as fh:
+              data = tomllib.load(fh)
+
+          print(data["tool"]["commitizen"]["version"])
+          PY
+          )
+
+          latest_tag=$(git tag --sort=-version:refname | head -n 1)
+
+          if [[ -n "$latest_tag" ]]; then
+            version_relation=$(python - "$current_version" "$latest_tag" <<'PY'
+          from packaging.version import Version
+          import sys
+
+          current_version, latest_tag = sys.argv[1], sys.argv[2]
+
+          if Version(current_version) < Version(latest_tag):
+              print("behind")
+          elif Version(current_version) == Version(latest_tag):
+              print("equal")
+          else:
+              print("ahead")
+          PY
+            )
+
+            if [[ "$version_relation" == "behind" ]]; then
+              echo "release_needed=false" >> "$GITHUB_OUTPUT"
+              echo "repair_needed=true" >> "$GITHUB_OUTPUT"
+              echo "repair_tag=$latest_tag" >> "$GITHUB_OUTPUT"
+              echo "Main is behind existing release tag $latest_tag; syncing release metadata first."
+              exit 0
+            fi
+          fi
 
           output=$(cz --no-raise 21 bump --yes --changelog --dry-run || true)
           echo "$output"
@@ -62,19 +99,69 @@ jobs:
 
           if [[ -z "$next_tag" ]]; then
             echo "release_needed=false" >> "$GITHUB_OUTPUT"
+            echo "repair_needed=false" >> "$GITHUB_OUTPUT"
             echo "No releasable commits found."
             exit 0
           fi
 
           if git rev-parse -q --verify "refs/tags/$next_tag" >/dev/null; then
             echo "release_needed=false" >> "$GITHUB_OUTPUT"
+            echo "repair_needed=false" >> "$GITHUB_OUTPUT"
             echo "next_tag=$next_tag" >> "$GITHUB_OUTPUT"
             echo "Tag $next_tag already exists; treating this run as already released."
             exit 0
           fi
 
           echo "release_needed=true" >> "$GITHUB_OUTPUT"
+          echo "repair_needed=false" >> "$GITHUB_OUTPUT"
           echo "next_tag=$next_tag" >> "$GITHUB_OUTPUT"
+
+      - name: Sync release metadata from existing tag
+        if: steps.preflight.outputs.repair_needed == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          repair_tag="${{ steps.preflight.outputs.repair_tag }}"
+
+          git show "refs/tags/$repair_tag:CHANGELOG.md" > CHANGELOG.md
+
+          python - "$repair_tag" <<'PY'
+          from pathlib import Path
+          import re
+          import sys
+
+          import tomlkit
+
+          release_tag = sys.argv[1]
+
+          pyproject_path = Path("pyproject.toml")
+          pyproject = tomlkit.parse(pyproject_path.read_text())
+          pyproject["project"]["version"] = release_tag
+          pyproject["tool"]["commitizen"]["version"] = release_tag
+          pyproject_path.write_text(tomlkit.dumps(pyproject))
+
+          cargo_path = Path("Cargo.toml")
+          cargo_text = cargo_path.read_text()
+          cargo_text, replacements = re.subn(
+              r'(?ms)(\[package\]\s.*?^version\s*=\s*")([^"]+)(")',
+              rf'\g<1>{release_tag}\3',
+              cargo_text,
+              count=1,
+          )
+
+          if replacements != 1:
+              raise SystemExit("failed to update Cargo.toml package version")
+
+          cargo_path.write_text(cargo_text)
+          PY
+
+          git add CHANGELOG.md pyproject.toml Cargo.toml
+          git commit -m "bump: sync release metadata for $repair_tag"
+
+      - name: Push repaired release metadata
+        if: steps.preflight.outputs.repair_needed == 'true'
+        run: git push origin HEAD:main
 
       - name: Create bump commit, tag, and changelog
         if: steps.preflight.outputs.release_needed == 'true'
