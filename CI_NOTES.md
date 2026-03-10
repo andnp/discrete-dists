@@ -18,12 +18,16 @@ This repository currently verifies cleanly with the following local sequence:
   - repeats the test job before building wheels/sdist and uploading to PyPI
 - `.github/workflows/tag.yml`
   - runs on pushes to `main`
-  - uses Commitizen to create bump commits/tags/changelog entries
+  - serializes release runs with a `concurrency` group so overlapping pushes do not compute the same next tag
+  - checks out the latest `main` tip and refreshes tags before calculating a release
+  - uses Commitizen directly in shell steps so duplicate-tag/no-op cases are handled explicitly
+  - pushes the bump commit and tag together with `git push --atomic`
 
 ## Observations
 
 - The checked-in workflows are consistent with the current project layout and passed local equivalents during this session.
 - `Cargo.toml` and `pyproject.toml` should stay version-synced; this was corrected in this branch.
+- Commitizen is configured to bump both `pyproject.toml` and `Cargo.toml` so Python and Rust releases stay aligned.
 - When building locally outside the workflow, PyO3 can pick up a newer system Python if the environment is not pinned. Using the project `.venv` Python avoids that issue.
 
 ## Recommended local build commands
