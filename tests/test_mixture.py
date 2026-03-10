@@ -74,3 +74,23 @@ def test_mixture_probs_all_defunct(rng):
     probs = m.probs(np.arange(5))
 
     assert np.allclose(probs, np.zeros(5))
+
+
+def test_mixture_sample_all_defunct(rng):
+    m = MixtureDistribution([
+        SubDistribution(Uniform(0), p=0.5),
+        SubDistribution(Proportional(10), p=0.5),
+    ])
+
+    with pytest.raises(ValueError, match="all-defunct mixture"):
+        m.sample(rng, 1)
+
+
+def test_mixture_stratified_sample_all_defunct(rng):
+    m = MixtureDistribution([
+        SubDistribution(Uniform(0), p=0.5),
+        SubDistribution(Proportional(10), p=0.5),
+    ])
+
+    with pytest.raises(ValueError, match="all-defunct mixture"):
+        m.stratified_sample(rng, 1)

@@ -58,6 +58,12 @@ class MixtureDistribution(Distribution):
         """
         out = np.empty(n, dtype=np.int64)
         idxs, weights = self.filter_defunct()
+
+        if len(idxs) == 0:
+            if n == 0:
+                return out
+            raise ValueError("cannot sample from an all-defunct mixture distribution")
+
         subs = rng.choice(idxs, size=n, replace=True, p=weights)
         elements, counts = np.unique(subs, return_counts=True)
 
@@ -83,6 +89,12 @@ class MixtureDistribution(Distribution):
         """
         out = np.empty(n, dtype=np.int64)
         idxs, weights = self.filter_defunct()
+
+        if len(idxs) == 0:
+            if n == 0:
+                return out
+            raise ValueError("cannot sample from an all-defunct mixture distribution")
+
         subs = rng.choice(idxs, size=n, replace=True, p=weights)
         elements, counts = np.unique(subs, return_counts=True)
 
