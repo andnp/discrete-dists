@@ -3,6 +3,7 @@ use ndarray::{Array1, Axis};
 use std::iter;
 use std::cmp::*;
 use pyo3::{prelude::*, types::{PyBytes, PyTuple}};
+use pyo3::exceptions::{PyIndexError, PyValueError};
 use bincode::serde::{decode_from_slice, encode_to_vec};
 use serde::{Deserialize, Serialize};
 
@@ -18,20 +19,31 @@ pub struct SumTree {
 
 #[pymethods]
 impl SumTree {
+    fn checked_index(&self, idx: i64) -> PyResult<usize> {
+        if idx < 0 || idx >= self.size as i64 {
+            return Err(PyIndexError::new_err(format!(
+                "index {idx} out of bounds for SumTree of size {}",
+                self.size,
+            )));
+        }
+
+        Ok(idx as usize)
+    }
+
     #[new]
     #[pyo3(signature = (*args))]
-    fn new<'py>(args: Bound<'py, PyTuple>) -> Self {
+    fn new<'py>(args: Bound<'py, PyTuple>) -> PyResult<Self> {
         match args.len() {
-            0 => SumTree {
+            0 => Ok(SumTree {
                 size: 0,
                 total_size: 0,
                 raw: vec![],
-            },
+            }),
 
             1 => {
                 let size = args
-                    .get_item(0).unwrap()
-                    .extract::<u32>().unwrap();
+                    .get_item(0)?
+                    .extract::<u32>()?;
 
                 let total_size = u32::next_power_of_two(size);
                 let n_layers = u32::ilog2(total_size) + 1;
@@ -45,14 +57,14 @@ impl SumTree {
                     layers[r as usize] = layer;
                 }
 
-                SumTree {
+                Ok(SumTree {
                     size,
                     total_size,
                     raw: layers,
-                }
+                })
             },
 
-            _ => unreachable!(),
+            _ => Err(PyValueError::new_err("SumTree expects at most one positional argument: size")),
         }
     }
 
@@ -60,21 +72,32 @@ impl SumTree {
         &mut self,
         idxs: PyReadonlyArray1<i64>,
         values: PyReadonlyArray1<f64>,
-    ) {
-        iter::zip(idxs.as_array(), values.as_array())
-            .for_each(|(idx, v)| { self.update_single(*idx, *v) });
+    ) -> PyResult<()> {
+        let idxs = idxs.as_array();
+        let values = values.as_array();
+
+        if idxs.len() != values.len() {
+            return Err(PyValueError::new_err(format!(
+                "idxs and values must have the same length, got {} and {}",
+                idxs.len(),
+                values.len(),
+            )));
+        }
+
+        for (idx, v) in iter::zip(idxs, values) {
+            self.update_single(*idx, *v)?;
+        }
+
+        Ok(())
     }
 
     pub fn update_single(
         &mut self,
         idx: i64,
         value: f64,
-    ) {
-        if idx >= self.size as i64 {
-            panic!("Tried to update index outside of tree: <{idx}>");
-        }
+    ) -> PyResult<()> {
+        let mut sub_idx = self.checked_index(idx)?;
 
-        let mut sub_idx = idx as usize;
         let old = self.raw[0][sub_idx];
 
         self.raw.iter_mut()
@@ -82,27 +105,32 @@ impl SumTree {
                 level[sub_idx] += value - old;
                 sub_idx = sub_idx / 2;
             });
+
+        Ok(())
     }
 
-    pub fn get_value(&mut self, idx: i64) -> f64 {
-        self.raw[0][idx as usize]
+    pub fn get_value(&self, idx: i64) -> PyResult<f64> {
+        Ok(self.raw[0][self.checked_index(idx)?])
     }
 
     pub fn get_values<'py>(
-        &mut self,
+        &self,
         idxs: PyReadonlyArray1<i64>,
         py: Python<'py>,
-    ) -> Bound<'py, PyArray1<f64>> {
-        let idxs = idxs.as_array().map(|a| { *a as usize });
-        let arr = self.raw[0]
-            .select(Axis(0), &idxs.to_vec());
+    ) -> PyResult<Bound<'py, PyArray1<f64>>> {
+        let idxs: Vec<usize> = idxs.as_array()
+            .iter()
+            .map(|idx| self.checked_index(*idx))
+            .collect::<PyResult<Vec<_>>>()?;
 
-            // arr.to_pyarray(py)
-            arr.to_vec().to_pyarray(py)
+        let arr = self.raw[0]
+            .select(Axis(0), &idxs);
+
+        Ok(arr.to_vec().to_pyarray(py))
     }
 
     pub fn total(
-        &mut self,
+        &self,
     ) -> f64 {
         *self.raw
             .last()
@@ -112,33 +140,31 @@ impl SumTree {
     }
 
     pub fn query<'py>(
-        &mut self,
+        &self,
         v: PyReadonlyArray1<f64>,
         py: Python<'py>,
-    ) -> Bound<'py, PyArray1<i64>> {
-        let n = v.len().expect("Failed to get array length");
+    ) -> PyResult<Bound<'py, PyArray1<i64>>> {
+        let n = v.len().map_err(|_| PyValueError::new_err("failed to get query array length"))?;
 
         let v = v.as_array();
         let mut totals = Array1::<f64>::zeros(n);
         let mut idxs = Array1::<i64>::zeros(n);
 
-        self.raw.iter()
-            .rev()
-            .for_each(|layer| {
-                for j in 0..n {
-                    idxs[j] = idxs[j] * 2;
-                    let left = *layer
-                        .get(idxs[j] as usize)
-                        .expect("");
+        for layer in self.raw.iter().rev() {
+            for j in 0..n {
+                idxs[j] = idxs[j] * 2;
+                let left = *layer
+                    .get(idxs[j] as usize)
+                    .ok_or_else(|| PyIndexError::new_err("query walked beyond tree bounds"))?;
 
-                    let m = left < (v[j] - totals[j]);
-                    totals[j] += if m { left } else { 0. };
-                    idxs[j] += if m { 1 } else { 0 };
-                }
-            });
+                let m = left < (v[j] - totals[j]);
+                totals[j] += if m { left } else { 0. };
+                idxs[j] += if m { 1 } else { 0 };
+            }
+        }
 
         idxs = idxs.map(|i| { min(*i, (self.size - 1) as i64) });
-        idxs.to_vec().to_pyarray(py)
+        Ok(idxs.to_vec().to_pyarray(py))
     }
 
     // enable pickling this data type

@@ -1,5 +1,6 @@
 import pickle
 import numpy as np
+import pytest
 
 from discrete_dists.utils.SumTree import SumTree
 
@@ -71,6 +72,30 @@ class TestSumTree:
         assert np.all(
             tree.total() == tree2.total()
         )
+
+    def test_rejects_negative_index(self):
+        tree = SumTree(4)
+
+        with pytest.raises(IndexError, match="out of bounds"):
+            tree.update([-1], [1.0])
+
+    def test_rejects_out_of_bounds_index(self):
+        tree = SumTree(4)
+
+        with pytest.raises(IndexError, match="out of bounds"):
+            tree.update([4], [1.0])
+
+    def test_rejects_length_mismatch(self):
+        tree = SumTree(5)
+
+        with pytest.raises(ValueError, match="same length"):
+            tree.update([0, 1, 2], [10.0])
+
+    def test_get_value_rejects_out_of_bounds_index(self):
+        tree = SumTree(2)
+
+        with pytest.raises(IndexError, match="out of bounds"):
+            tree.get_value(-1)
 
 # ----------------
 # -- Benchmarks --
