@@ -39,14 +39,21 @@ class Proportional(Distribution):
         in the distribution.
         """
         elements = np.asarray(elements)
-        elements = elements - self._support[0]
+        probs = np.zeros(len(elements), dtype=np.float64)
+
+        in_support = (
+            (elements >= self._support[0]) &
+            (elements < self._support[1])
+        )
 
         t = self.tree.total()
-        if t == 0:
-            return np.zeros(len(elements))
+        if t == 0 or not np.any(in_support):
+            return probs
 
-        v = self.tree.get_values(elements)
-        return v / t
+        shifted = elements[in_support] - self._support[0]
+        v = self.tree.get_values(shifted)
+        probs[in_support] = v / t
+        return probs
 
 
     @property

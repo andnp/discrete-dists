@@ -135,3 +135,20 @@ def test_mixture_is_defunct_true():
     ])
 
     assert m.is_defunct is True
+
+
+def test_mixture_probs_disjoint_supports():
+    p = Proportional((10, 15))
+    p.update(
+        np.arange(10, 15),
+        np.ones(5),
+    )
+
+    m = MixtureDistribution([
+        SubDistribution(Uniform(5), p=0.5),
+        SubDistribution(p, p=0.5),
+    ])
+
+    probs = m.probs(np.array([0, 1, 10, 11, 50]))
+
+    assert np.allclose(probs, np.array([0.1, 0.1, 0.1, 0.1, 0.0]))
