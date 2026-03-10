@@ -181,9 +181,7 @@ impl SumTree {
         for layer in self.raw.iter().rev() {
             for j in 0..n {
                 idxs[j] = idxs[j] * 2;
-                let left = *layer
-                    .get(idxs[j] as usize)
-                    .ok_or_else(|| PyIndexError::new_err("query walked beyond tree bounds"))?;
+                let left = layer[idxs[j] as usize];
 
                 let m = left < (v[j] - totals[j]);
                 totals[j] += if m { left } else { 0. };
