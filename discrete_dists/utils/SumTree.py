@@ -35,10 +35,7 @@ class SumTree(ru.SumTree):
         if t <= 0:
             raise ValueError("Cannot sample when the tree is empty or contains invalid values")
 
-        buckets = np.linspace(0., 1., n + 1)
-        values = np.asarray([
-            rng.uniform(buckets[i], buckets[i + 1]) for i in range(n)
-        ])
+        values = (np.arange(n, dtype=np.float64) + rng.random(n)) / n
 
         return self.query(t * values)
 
