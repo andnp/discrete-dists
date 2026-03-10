@@ -124,6 +124,9 @@ class TestSumTree:
         with pytest.raises(ValueError, match="Cannot sample"):
             tree.sample(rng, 1)
 
+        with pytest.raises(ValueError, match="Cannot sample"):
+            tree.stratified_sample(rng, 1)
+
 # ----------------
 # -- Benchmarks --
 # ----------------

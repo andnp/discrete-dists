@@ -47,6 +47,16 @@ impl SumTree {
 
         Ok(())
     }
+
+    fn set_validated_value(&mut self, checked_idx: usize, value: f64) {
+        let mut sub_idx = checked_idx;
+        let old = self.raw[0][sub_idx];
+
+        self.raw.iter_mut().for_each(|level| {
+            level[sub_idx] += value - old;
+            sub_idx /= 2;
+        });
+    }
 }
 
 #[pymethods]
@@ -93,6 +103,7 @@ impl SumTree {
         &mut self,
         idxs: PyReadonlyArray1<i64>,
         values: PyReadonlyArray1<f64>,
+        py: Python<'_>,
     ) -> PyResult<()> {
         let idxs = idxs.as_array();
         let values = values.as_array();
@@ -105,23 +116,27 @@ impl SumTree {
             )));
         }
 
-        for (idx, v) in iter::zip(idxs, values) {
-            self.update_single(*idx, *v)?;
-        }
+        let validated = iter::zip(idxs, values)
+            .map(|(idx, value)| {
+                let checked_idx = self.checked_index(*idx)?;
+                Self::validate_weight(*idx, *value)?;
+                Ok((checked_idx, *value))
+            })
+            .collect::<PyResult<Vec<_>>>()?;
+
+        py.allow_threads(|| {
+            for (checked_idx, value) in validated {
+                self.set_validated_value(checked_idx, value);
+            }
+        });
 
         Ok(())
     }
 
     pub fn update_single(&mut self, idx: i64, value: f64) -> PyResult<()> {
         Self::validate_weight(idx, value)?;
-        let mut sub_idx = self.checked_index(idx)?;
-
-        let old = self.raw[0][sub_idx];
-
-        self.raw.iter_mut().for_each(|level| {
-            level[sub_idx] += value - old;
-            sub_idx = sub_idx / 2;
-        });
+        let checked_idx = self.checked_index(idx)?;
+        self.set_validated_value(checked_idx, value);
 
         Ok(())
     }
@@ -141,9 +156,9 @@ impl SumTree {
             .map(|idx| self.checked_index(*idx))
             .collect::<PyResult<Vec<_>>>()?;
 
-        let arr = self.raw[0].select(Axis(0), &idxs);
+        let values = py.allow_threads(|| self.raw[0].select(Axis(0), &idxs).to_vec());
 
-        Ok(arr.to_vec().to_pyarray(py))
+        Ok(values.to_pyarray(py))
     }
 
     pub fn total(&self) -> f64 {
