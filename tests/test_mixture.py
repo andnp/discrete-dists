@@ -50,3 +50,27 @@ def test_mixture_defunct(rng):
     ) and np.all(
         counts < (expected_count + thresh)
     )
+
+
+def test_mixture_probs_defunct(rng):
+    m = MixtureDistribution([
+        SubDistribution(Uniform(5), p=0.5),
+        SubDistribution(Uniform(0), p=0.25),
+        SubDistribution(Proportional(10), p=0.25),
+    ])
+
+    probs = m.probs(np.arange(5))
+
+    assert np.allclose(probs, np.full(5, 1 / 5))
+    assert probs.sum() == pytest.approx(1.0)
+
+
+def test_mixture_probs_all_defunct(rng):
+    m = MixtureDistribution([
+        SubDistribution(Uniform(0), p=0.5),
+        SubDistribution(Proportional(10), p=0.5),
+    ])
+
+    probs = m.probs(np.arange(5))
+
+    assert np.allclose(probs, np.zeros(5))
