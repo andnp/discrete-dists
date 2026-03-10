@@ -1,3 +1,28 @@
+## 1.2.0 (2026-03-10)
+
+### Feat
+
+- export public api and categorical
+- allow widening proportional support
+- add mixture defunct property
+
+### Fix
+
+- add cheap sumtree safety checks
+- harden sumtree bounds and batch validation
+- tighten sampling without replacement
+- return zero outside proportional support
+- reject sampling from all-defunct mixtures
+- make uniform probabilities support-aware
+- reweight defunct children in mixture probs
+
+### Perf
+
+- vectorize stratified sampling
+- add contiguous sumtree query fast path
+- trim sumtree query bounds overhead
+- add low-risk sumtree improvements
+
 ## 1.1.2 (2025-03-17)
 
 ### Fix
