@@ -109,6 +109,11 @@ class MixtureDistribution(Distribution):
         return out
 
 
+    @property
+    def is_defunct(self) -> bool:
+        return all(d.is_defunct for d in self.dists)
+
+
     def filter_defunct(self):
         """
         Remove any defunct distributions from the mixture, where

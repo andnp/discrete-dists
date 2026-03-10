@@ -108,3 +108,30 @@ def test_mixture_sample_matches_probs_with_defunct_children(rng):
     empirical = np.bincount(data, minlength=5) / len(data)
 
     assert np.allclose(empirical, m.probs(support), atol=0.02)
+
+
+def test_mixture_is_defunct_false():
+    m = MixtureDistribution([
+        SubDistribution(Uniform(5), p=0.5),
+        SubDistribution(Uniform((10, 15)), p=0.5),
+    ])
+
+    assert m.is_defunct is False
+
+
+def test_mixture_is_defunct_partial():
+    m = MixtureDistribution([
+        SubDistribution(Uniform(5), p=0.5),
+        SubDistribution(Uniform(0), p=0.5),
+    ])
+
+    assert m.is_defunct is False
+
+
+def test_mixture_is_defunct_true():
+    m = MixtureDistribution([
+        SubDistribution(Uniform(0), p=0.5),
+        SubDistribution(Proportional(10), p=0.5),
+    ])
+
+    assert m.is_defunct is True
