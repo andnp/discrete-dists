@@ -1,11 +1,14 @@
-use numpy::{ToPyArray, PyArray1, PyReadonlyArray1};
-use ndarray::{Array1, Axis};
-use std::iter;
-use std::cmp::*;
-use pyo3::{prelude::*, types::{PyBytes, PyTuple}};
-use pyo3::exceptions::{PyIndexError, PyValueError};
 use bincode::serde::{decode_from_slice, encode_to_vec};
+use ndarray::{Array1, Axis};
+use numpy::{PyArray1, PyReadonlyArray1, ToPyArray};
+use pyo3::exceptions::{PyIndexError, PyValueError};
+use pyo3::{
+    prelude::*,
+    types::{PyBytes, PyTuple},
+};
 use serde::{Deserialize, Serialize};
+use std::cmp::*;
+use std::iter;
 
 #[pyclass(module = "rust", subclass)]
 #[derive(Serialize, Deserialize, Clone)]
@@ -17,7 +20,6 @@ pub struct SumTree {
     raw: Vec<Array1<f64>>,
 }
 
-#[pymethods]
 impl SumTree {
     fn checked_index(&self, idx: i64) -> PyResult<usize> {
         if idx < 0 || idx >= self.size as i64 {
@@ -30,6 +32,25 @@ impl SumTree {
         Ok(idx as usize)
     }
 
+    fn validate_weight(idx: i64, value: f64) -> PyResult<()> {
+        if !value.is_finite() {
+            return Err(PyValueError::new_err(format!(
+                "value at index {idx} must be finite, got {value}",
+            )));
+        }
+
+        if value < 0.0 {
+            return Err(PyValueError::new_err(format!(
+                "value at index {idx} must be nonnegative, got {value}",
+            )));
+        }
+
+        Ok(())
+    }
+}
+
+#[pymethods]
+impl SumTree {
     #[new]
     #[pyo3(signature = (*args))]
     fn new<'py>(args: Bound<'py, PyTuple>) -> PyResult<Self> {
@@ -41,9 +62,7 @@ impl SumTree {
             }),
 
             1 => {
-                let size = args
-                    .get_item(0)?
-                    .extract::<u32>()?;
+                let size = args.get_item(0)?.extract::<u32>()?;
 
                 let total_size = u32::next_power_of_two(size);
                 let n_layers = u32::ilog2(total_size) + 1;
@@ -62,9 +81,11 @@ impl SumTree {
                     total_size,
                     raw: layers,
                 })
-            },
+            }
 
-            _ => Err(PyValueError::new_err("SumTree expects at most one positional argument: size")),
+            _ => Err(PyValueError::new_err(
+                "SumTree expects at most one positional argument: size",
+            )),
         }
     }
 
@@ -91,20 +112,16 @@ impl SumTree {
         Ok(())
     }
 
-    pub fn update_single(
-        &mut self,
-        idx: i64,
-        value: f64,
-    ) -> PyResult<()> {
+    pub fn update_single(&mut self, idx: i64, value: f64) -> PyResult<()> {
+        Self::validate_weight(idx, value)?;
         let mut sub_idx = self.checked_index(idx)?;
 
         let old = self.raw[0][sub_idx];
 
-        self.raw.iter_mut()
-            .for_each(|level| {
-                level[sub_idx] += value - old;
-                sub_idx = sub_idx / 2;
-            });
+        self.raw.iter_mut().for_each(|level| {
+            level[sub_idx] += value - old;
+            sub_idx = sub_idx / 2;
+        });
 
         Ok(())
     }
@@ -118,25 +135,19 @@ impl SumTree {
         idxs: PyReadonlyArray1<i64>,
         py: Python<'py>,
     ) -> PyResult<Bound<'py, PyArray1<f64>>> {
-        let idxs: Vec<usize> = idxs.as_array()
+        let idxs: Vec<usize> = idxs
+            .as_array()
             .iter()
             .map(|idx| self.checked_index(*idx))
             .collect::<PyResult<Vec<_>>>()?;
 
-        let arr = self.raw[0]
-            .select(Axis(0), &idxs);
+        let arr = self.raw[0].select(Axis(0), &idxs);
 
         Ok(arr.to_vec().to_pyarray(py))
     }
 
-    pub fn total(
-        &self,
-    ) -> f64 {
-        *self.raw
-            .last()
-            .expect("")
-            .get(0)
-            .expect("")
+    pub fn total(&self) -> f64 {
+        *self.raw.last().expect("").get(0).expect("")
     }
 
     pub fn query<'py>(
@@ -144,7 +155,9 @@ impl SumTree {
         v: PyReadonlyArray1<f64>,
         py: Python<'py>,
     ) -> PyResult<Bound<'py, PyArray1<i64>>> {
-        let n = v.len().map_err(|_| PyValueError::new_err("failed to get query array length"))?;
+        let n = v
+            .len()
+            .map_err(|_| PyValueError::new_err("failed to get query array length"))?;
 
         let v = v.as_array();
         let mut totals = Array1::<f64>::zeros(n);
@@ -163,16 +176,21 @@ impl SumTree {
             }
         }
 
-        idxs = idxs.map(|i| { min(*i, (self.size - 1) as i64) });
+        idxs = idxs.map(|i| min(*i, (self.size - 1) as i64));
         Ok(idxs.to_vec().to_pyarray(py))
     }
 
     // enable pickling this data type
     pub fn __setstate__<'py>(&mut self, state: Bound<'py, PyBytes>) -> PyResult<()> {
-        *self = decode_from_slice(state.as_bytes(), bincode::config::standard()).unwrap().0;
+        *self = decode_from_slice(state.as_bytes(), bincode::config::standard())
+            .unwrap()
+            .0;
         Ok(())
     }
     pub fn __getstate__<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
-        Ok(PyBytes::new(py, &encode_to_vec(&self, bincode::config::standard()).unwrap()))
+        Ok(PyBytes::new(
+            py,
+            &encode_to_vec(&self, bincode::config::standard()).unwrap(),
+        ))
     }
 }

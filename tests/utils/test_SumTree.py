@@ -18,7 +18,7 @@ class TestSumTree:
         tree = SumTree(100)
         rng = np.random.default_rng(0)
         for _ in range(100):
-            v = rng.standard_normal(100)
+            v = rng.uniform(0, 1, size=100)
             truth = v.sum()
             tree.update(np.arange(100), v)
 
@@ -96,6 +96,33 @@ class TestSumTree:
 
         with pytest.raises(IndexError, match="out of bounds"):
             tree.get_value(-1)
+
+    def test_rejects_negative_weight(self):
+        tree = SumTree(4)
+
+        with pytest.raises(ValueError, match="nonnegative"):
+            tree.update([1], [-1.0])
+
+    def test_rejects_nan_weight(self):
+        tree = SumTree(4)
+
+        with pytest.raises(ValueError, match="finite"):
+            tree.update([1], [np.nan])
+
+    def test_rejects_inf_weight(self):
+        tree = SumTree(4)
+
+        with pytest.raises(ValueError, match="finite"):
+            tree.update([1], [np.inf])
+
+    def test_zero_sized_tree_rejects_sampling(self):
+        tree = SumTree(0)
+        rng = np.random.default_rng(0)
+
+        assert tree.total() == 0
+
+        with pytest.raises(ValueError, match="Cannot sample"):
+            tree.sample(rng, 1)
 
 # ----------------
 # -- Benchmarks --

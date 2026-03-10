@@ -24,14 +24,16 @@ class SumTree(ru.SumTree):
 
     def sample(self, rng: np.random.Generator, n: int) -> np.ndarray:
         t = self.total()
-        assert t > 0, "Cannot sample when the tree is empty or contains negative values"
+        if t <= 0:
+            raise ValueError("Cannot sample when the tree is empty or contains invalid values")
 
         rs = rng.uniform(0, t, size=n)
         return self.query(rs)
 
     def stratified_sample(self, rng: np.random.Generator, n: int) -> np.ndarray:
         t = self.total()
-        assert t > 0, "Cannot sample when the tree is empty or contains negative values"
+        if t <= 0:
+            raise ValueError("Cannot sample when the tree is empty or contains invalid values")
 
         buckets = np.linspace(0., 1., n + 1)
         values = np.asarray([
