@@ -222,6 +222,10 @@ impl Tree {
             self.renormalize();
             value = weight;
         }
+        self.set_raw(checked_idx, value);
+    }
+
+    fn set_raw(&mut self, checked_idx: usize, value: f64) {
         let len = self.data.len();
         let mut i = self.total_size as usize + checked_idx;
         debug_assert!(i < len);
@@ -382,6 +386,53 @@ impl Tree {
         for idx in out.iter_mut() {
             *idx = min(*idx, (self.size - 1) as i64);
         }
+    }
+
+    /// Clears `out` and fills it with `n` distinct leaves. Each draw zeroes its leaf, and every
+    /// weight is restored before returning, so the tree is unchanged on success and on error.
+    pub fn sample_without_replacement(
+        &mut self,
+        rng: &mut Rng,
+        n: usize,
+        out: &mut Vec<i64>,
+    ) -> Result<(), TreeError> {
+        out.clear();
+        let mut removed = Vec::with_capacity(n);
+        let result = self.draw_without_replacement(rng, n, out, &mut removed);
+        for &(idx, raw) in removed.iter().rev() {
+            self.set_raw(idx, raw);
+        }
+
+        result
+    }
+
+    // `removed` records each zeroed leaf's raw stored value, so restoring it reproduces the heap exactly, scale included.
+    fn draw_without_replacement(
+        &mut self,
+        rng: &mut Rng,
+        n: usize,
+        out: &mut Vec<i64>,
+        removed: &mut Vec<(usize, f64)>,
+    ) -> Result<(), TreeError> {
+        for _ in 0..n {
+            let total = self.total();
+            if total <= 0.0 {
+                return Err(TreeError::NotEnoughElements {
+                    requested: n,
+                    found: out.len(),
+                });
+            }
+
+            let mut idx = [0i64];
+            self.query(&[rng.next_f64() * total], &mut idx);
+            let leaf = idx[0] as usize;
+            let raw = self.data[self.total_size as usize + leaf];
+            self.set_raw(leaf, 0.0);
+            removed.push((leaf, raw));
+            out.push(idx[0]);
+        }
+
+        Ok(())
     }
 
     fn sampling_total(&self) -> Result<f64, TreeError> {
@@ -578,6 +629,87 @@ mod tests {
             );
         }
         assert!((back.total() - total_before).abs() <= 1e-12 * total_before);
+    }
+
+    fn positive_leaves(tree: &Tree) -> Vec<i64> {
+        (0..tree.size() as i64)
+            .filter(|&i| tree.get_value(i).unwrap() > 0.0)
+            .collect()
+    }
+
+    #[test]
+    fn sample_without_replacement_returns_distinct_positive_leaves() {
+        let mut tree = Tree::new(10);
+        tree.update(&[1, 3, 4, 8], &[1.0, 0.5, 2.0, 3.0]).unwrap();
+        let positive = positive_leaves(&tree);
+        let mut out = Vec::new();
+
+        for seed in 0..100 {
+            tree.sample_without_replacement(&mut Rng::new(seed), 3, &mut out)
+                .unwrap();
+
+            let mut sorted = out.clone();
+            sorted.sort_unstable();
+            sorted.dedup();
+            assert_eq!(sorted.len(), 3, "seed {seed}: {out:?}");
+            assert!(
+                out.iter().all(|idx| positive.contains(idx)),
+                "seed {seed}: {out:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn sample_without_replacement_restores_weights_and_total() {
+        for scale in [1.0, 0.3] {
+            let mut tree = Tree::new(10);
+            tree.update(&[1, 3, 4, 8], &[1.0, 0.5, 2.0, 3.0]).unwrap();
+            tree.scale(scale).unwrap();
+            let idxs: Vec<i64> = (0..10).collect();
+            let before = tree.get_values(&idxs).unwrap();
+            let total_before = tree.total();
+            let data_before = tree.data.clone();
+            let mut out = Vec::new();
+
+            tree.sample_without_replacement(&mut Rng::new(5), 4, &mut out)
+                .unwrap();
+
+            assert_eq!(tree.get_values(&idxs).unwrap(), before, "scale {scale}");
+            assert_eq!(tree.total(), total_before, "scale {scale}");
+            assert_eq!(tree.data, data_before, "scale {scale}");
+        }
+    }
+
+    #[test]
+    fn sample_without_replacement_of_all_positive_leaves_returns_that_set() {
+        let mut tree = Tree::new(10);
+        tree.update(&[1, 3, 4, 8], &[1.0, 0.5, 2.0, 3.0]).unwrap();
+        let mut out = Vec::new();
+
+        tree.sample_without_replacement(&mut Rng::new(2), 4, &mut out)
+            .unwrap();
+
+        out.sort_unstable();
+        assert_eq!(out, vec![1, 3, 4, 8]);
+    }
+
+    #[test]
+    fn sample_without_replacement_too_many_errors_and_restores_tree() {
+        let mut tree = Tree::new(10);
+        tree.update(&[1, 3, 4, 8], &[1.0, 0.5, 2.0, 3.0]).unwrap();
+        let idxs: Vec<i64> = (0..10).collect();
+        let before = tree.get_values(&idxs).unwrap();
+        let mut out = Vec::new();
+
+        assert_eq!(
+            tree.sample_without_replacement(&mut Rng::new(2), 5, &mut out),
+            Err(TreeError::NotEnoughElements {
+                requested: 5,
+                found: 4
+            })
+        );
+        assert_eq!(tree.get_values(&idxs).unwrap(), before);
+        assert_eq!(tree.total(), 6.5);
     }
 
     #[test]

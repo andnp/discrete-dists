@@ -1,4 +1,5 @@
 use crate::{Rng, Tree, TreeError};
+use std::collections::HashSet;
 use std::iter;
 
 pub trait Distribution {
@@ -46,6 +47,33 @@ impl Uniform {
 
     pub fn update_support(&mut self, lo: i64, hi: i64) {
         *self = Uniform::new(lo, hi);
+    }
+
+    /// Floyd's algorithm: exactly `n` distinct elements, each subset equally likely.
+    pub fn sample_without_replacement(
+        &self,
+        rng: &mut Rng,
+        n: usize,
+        out: &mut Vec<i64>,
+    ) -> Result<(), TreeError> {
+        out.clear();
+        let width = (self.hi - self.lo) as u64;
+        if n as u64 > width {
+            return Err(TreeError::NotEnoughElements {
+                requested: n,
+                found: width as usize,
+            });
+        }
+
+        let mut chosen = HashSet::with_capacity(n);
+        for j in (width - n as u64)..width {
+            let t = rng.below(j + 1);
+            let pick = if chosen.contains(&t) { j } else { t };
+            chosen.insert(pick);
+            out.push(self.lo + pick as i64);
+        }
+
+        Ok(())
     }
 
     fn sampling_width(&self) -> Result<u64, TreeError> {
@@ -140,6 +168,20 @@ impl Proportional {
 
     fn checked_offsets(&self, elements: &[i64]) -> Result<Vec<i64>, TreeError> {
         elements.iter().map(|&e| self.checked_offset(e)).collect()
+    }
+
+    pub fn sample_without_replacement(
+        &mut self,
+        rng: &mut Rng,
+        n: usize,
+        out: &mut Vec<i64>,
+    ) -> Result<(), TreeError> {
+        self.tree.sample_without_replacement(rng, n, out)?;
+        for x in out.iter_mut() {
+            *x += self.lo;
+        }
+
+        Ok(())
     }
 
     pub fn update(&mut self, elements: &[i64], values: &[f64]) -> Result<(), TreeError> {
@@ -467,6 +509,85 @@ mod tests {
         let mut out = [0.0; 3];
         p.probs(&[2, 4, 7], &mut out);
         assert_eq!(out, [1.0 / 6.0, 0.5, 0.0]);
+    }
+
+    #[test]
+    fn uniform_sample_without_replacement_of_whole_support_is_a_permutation() {
+        let u = Uniform::new(5, 15);
+        let mut out = Vec::new();
+
+        for seed in 0..100 {
+            u.sample_without_replacement(&mut Rng::new(seed), 10, &mut out)
+                .unwrap();
+
+            out.sort_unstable();
+            assert_eq!(out, (5..15).collect::<Vec<i64>>(), "seed {seed}");
+        }
+    }
+
+    #[test]
+    fn uniform_sample_without_replacement_rejects_n_above_width() {
+        let u = Uniform::new(0, 3);
+        let mut out = Vec::new();
+
+        assert_eq!(
+            u.sample_without_replacement(&mut Rng::new(1), 4, &mut out),
+            Err(TreeError::NotEnoughElements {
+                requested: 4,
+                found: 3
+            })
+        );
+    }
+
+    #[test]
+    fn uniform_sample_without_replacement_includes_each_element_with_probability_n_over_width() {
+        let u = Uniform::new(0, 20);
+        let trials: u64 = 20_000;
+        let mut counts = [0usize; 20];
+        let mut out = Vec::new();
+
+        for seed in 0..trials {
+            u.sample_without_replacement(&mut Rng::new(seed), 5, &mut out)
+                .unwrap();
+            for &x in &out {
+                counts[x as usize] += 1;
+            }
+        }
+
+        for (k, count) in counts.iter().enumerate() {
+            let freq = *count as f64 / trials as f64;
+            assert!((freq - 0.25).abs() < 0.03, "element {k}: got {freq}");
+        }
+    }
+
+    #[test]
+    fn proportional_sample_without_replacement_is_offset_and_leaves_weights_unchanged() {
+        let mut p = Proportional::new(10, 20);
+        p.update(&[11, 15, 19], &[1.0, 2.0, 3.0]).unwrap();
+        let mut out = Vec::new();
+
+        p.sample_without_replacement(&mut Rng::new(4), 3, &mut out)
+            .unwrap();
+
+        out.sort_unstable();
+        assert_eq!(out, vec![11, 15, 19]);
+        assert_eq!(p.get_values(&[11, 15, 19]).unwrap(), vec![1.0, 2.0, 3.0]);
+    }
+
+    #[test]
+    fn proportional_sample_without_replacement_rejects_n_above_positive_mass() {
+        let mut p = Proportional::new(0, 5);
+        p.update(&[1, 2], &[1.0, 1.0]).unwrap();
+        let mut out = Vec::new();
+
+        assert_eq!(
+            p.sample_without_replacement(&mut Rng::new(1), 3, &mut out),
+            Err(TreeError::NotEnoughElements {
+                requested: 3,
+                found: 2
+            })
+        );
+        assert_eq!(p.get_values(&[1, 2]).unwrap(), vec![1.0, 1.0]);
     }
 
     #[test]
