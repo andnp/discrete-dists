@@ -27,3 +27,7 @@ harness = false
 [[bench]]
 name = "uniform_set"
 harness = false
+
+[[bench]]
+name = "prioritized"
+harness = false
