@@ -20,8 +20,19 @@ The formal API behavior is documented in [`SEMANTICS.md`](./SEMANTICS.md).
 - `Proportional`: sample discrete elements proportionally to per-element nonnegative weights.
 - `Categorical`: convenience wrapper around `Proportional` using standard probability terminology.
 - `MixtureDistribution`: blend multiple sub-distributions with mixture weights.
+- `WindowMixture`: weight elements by how long ago they were stamped, with age windows and optional half-life decay.
 
 ## API
+### Rng
+Sampling methods take a seeded `Rng` rather than a numpy `Generator`; the same seed reproduces the same draws.
+Where you previously passed a numpy `Generator`, pass `Rng(seed)` instead.
+
+```python
+from discrete_dists import Rng
+
+rng = Rng(0)
+```
+
 ### Uniform Distribution
 A Rust-backed uniform distribution, conforming to the `Distribution` API defined in this library.
 This wrapper additionally introduces importance sampling ratio calculations, sampling without replacement, and stratified sampling.
@@ -94,6 +105,25 @@ print(m.sample(rng, 10000))
 ```
 
 Mixtures ignore defunct children when computing probabilities and samples.
+
+### Window Mixture
+Weight elements by how long ago they were stamped. Stamps and the cursor can live on any monotone axis, such as step counts. Set `half_life` on a `Window` to decay weights by `0.5 ** (age / half_life)` inside that window.
+
+```python
+import numpy as np
+from discrete_dists import Rng, Window, WindowMixture
+
+rng = Rng(0)
+m = WindowMixture(10_000, [Window(0, 1000, p=0.75), Window(1000, np.inf, p=0.25)])
+
+# each event is stamped with the step it arrived at
+for step in range(5000):
+    m.advance(step)
+    m.insert([step], [step], [1.0])
+
+# about 75% of draws come from the last 1000 steps, 25% from older events
+print(m.sample(rng, 100))
+```
 
 ## Edge cases and contracts
 
