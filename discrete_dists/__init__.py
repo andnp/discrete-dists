@@ -4,6 +4,7 @@ from discrete_dists.mixture import MixtureDistribution, SubDistribution
 from discrete_dists.proportional import Proportional
 from discrete_dists.rust import Rng
 from discrete_dists.uniform import Uniform
+from discrete_dists.window import Window, WindowMixture
 
 __all__ = [
     "Categorical",
@@ -14,4 +15,6 @@ __all__ = [
     "SubDistribution",
     "Support",
     "Uniform",
+    "Window",
+    "WindowMixture",
 ]

@@ -4,12 +4,14 @@ mod mixture;
 mod rng;
 mod uniform;
 mod utils;
+mod window;
 
 /// A Python module implemented in Rust.
 #[pymodule(gil_used = false)]
 fn rust(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<rng::Rng>()?;
     m.add_class::<utils::sumtree::SumTree>()?;
+    m.add_class::<window::WindowMixture>()?;
     m.add_function(wrap_pyfunction!(mixture::mixture_sample, m)?)?;
     m.add_function(wrap_pyfunction!(mixture::mixture_stratified_sample, m)?)?;
     m.add_function(wrap_pyfunction!(
