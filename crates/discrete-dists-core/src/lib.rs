@@ -4,12 +4,82 @@ use std::cmp::min;
 use std::fmt;
 use std::iter;
 
-// Field order and types are the pickle format; bincode encodes them positionally.
 #[derive(Serialize, Deserialize, Clone)]
+#[serde(try_from = "TreeWire", into = "TreeWire")]
 pub struct Tree {
     size: u32,
     total_size: u32,
     raw: Vec<Array1<f64>>,
+}
+
+// Field order and types are the pickle format; bincode encodes them positionally.
+#[derive(Serialize, Deserialize)]
+struct TreeWire {
+    size: u32,
+    total_size: u32,
+    raw: Vec<Array1<f64>>,
+}
+
+impl From<Tree> for TreeWire {
+    fn from(tree: Tree) -> Self {
+        TreeWire {
+            size: tree.size,
+            total_size: tree.total_size,
+            raw: tree.raw,
+        }
+    }
+}
+
+impl TryFrom<TreeWire> for Tree {
+    type Error = String;
+
+    fn try_from(wire: TreeWire) -> Result<Self, Self::Error> {
+        if wire.total_size == 0 {
+            if wire.size != 0 || !wire.raw.is_empty() {
+                return Err(format!(
+                    "empty tree must have size 0 and no levels, got size {} and {} levels",
+                    wire.size,
+                    wire.raw.len()
+                ));
+            }
+        } else {
+            if !wire.total_size.is_power_of_two() {
+                return Err(format!(
+                    "total_size must be a power of two, got {}",
+                    wire.total_size
+                ));
+            }
+            if wire.size > wire.total_size {
+                return Err(format!(
+                    "size {} exceeds total_size {}",
+                    wire.size, wire.total_size
+                ));
+            }
+            let n_layers = wire.total_size.ilog2() as usize + 1;
+            if wire.raw.len() != n_layers {
+                return Err(format!(
+                    "expected {n_layers} levels for total_size {}, got {}",
+                    wire.total_size,
+                    wire.raw.len()
+                ));
+            }
+            for (r, layer) in wire.raw.iter().enumerate() {
+                let expected = (wire.total_size >> r) as usize;
+                if layer.len() != expected {
+                    return Err(format!(
+                        "level {r} must have {expected} nodes, got {}",
+                        layer.len()
+                    ));
+                }
+            }
+        }
+
+        Ok(Tree {
+            size: wire.size,
+            total_size: wire.total_size,
+            raw: wire.raw,
+        })
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -271,6 +341,28 @@ mod tests {
 
     fn leaf_sum(tree: &Tree) -> f64 {
         tree.raw[0].iter().sum()
+    }
+
+    #[test]
+    fn wire_round_trip_preserves_levels() {
+        let mut tree = Tree::new(5);
+        tree.update(&[0, 3, 4], &[1.5, 0.0, 2.0]).unwrap();
+        let before: Vec<Vec<f64>> = tree.raw.iter().map(|l| l.to_vec()).collect();
+
+        let back = Tree::try_from(TreeWire::from(tree)).unwrap();
+
+        let after: Vec<Vec<f64>> = back.raw.iter().map(|l| l.to_vec()).collect();
+        assert_eq!(after, before);
+        assert_eq!(back.size, 5);
+        assert_eq!(back.total_size, 8);
+    }
+
+    #[test]
+    fn wire_rejects_level_with_wrong_length() {
+        let mut wire = TreeWire::from(Tree::new(4));
+        wire.raw[1] = Array1::zeros(3);
+
+        assert!(Tree::try_from(wire).is_err());
     }
 
     proptest! {
