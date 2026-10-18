@@ -5,7 +5,7 @@ use numpy::{PyArray1, ToPyArray};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
-fn uniform(lo: i64, hi: i64) -> PyResult<Uniform> {
+pub(crate) fn uniform(lo: i64, hi: i64) -> PyResult<Uniform> {
     if hi < lo {
         return Err(PyValueError::new_err(format!(
             "support [{lo}, {hi}) is reversed"

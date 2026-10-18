@@ -1,3 +1,5 @@
+from collections.abc import Sequence
+
 import numpy as np
 
 class Rng:
@@ -28,3 +30,23 @@ class SumTree:
 def uniform_sample(rng: Rng, lo: int, hi: int, n: int) -> np.ndarray: ...
 def uniform_stratified_sample(rng: Rng, lo: int, hi: int, n: int) -> np.ndarray: ...
 def uniform_sample_without_replacement(rng: Rng, lo: int, hi: int, n: int) -> np.ndarray: ...
+
+def mixture_sample(
+    rng: Rng,
+    parts: Sequence[tuple[str, tuple[int, int] | tuple[int, SumTree], float]],
+    n: int,
+) -> np.ndarray: ...
+def mixture_stratified_sample(
+    rng: Rng,
+    parts: Sequence[tuple[str, tuple[int, int] | tuple[int, SumTree], float]],
+    n: int,
+) -> np.ndarray: ...
+def mixture_sample_without_replacement(
+    rng: Rng,
+    parts: Sequence[tuple[str, tuple[int, int] | tuple[int, SumTree], float]],
+    n: int,
+) -> np.ndarray: ...
+def mixture_probs(
+    parts: Sequence[tuple[str, tuple[int, int] | tuple[int, SumTree], float]],
+    elements: np.ndarray,
+) -> np.ndarray: ...

@@ -4,9 +4,19 @@ from typing import Sequence
 import numpy as np
 
 from discrete_dists.distribution import Distribution
-from discrete_dists.rust import Rng
 from discrete_dists.proportional import Proportional
+from discrete_dists.rust import (
+    Rng,
+    mixture_probs,
+    mixture_sample,
+    mixture_sample_without_replacement,
+    mixture_stratified_sample,
+)
 from discrete_dists.uniform import Uniform
+from discrete_dists.utils.SumTree import SumTree
+
+_Part = tuple[str, tuple[int, int] | tuple[int, SumTree], float]
+
 
 @dataclass
 class SubDistribution:
@@ -18,10 +28,11 @@ class SubDistribution:
     p: float
 
 
-def _draw_parts(rng: Rng, idxs: np.ndarray, weights: np.ndarray, n: int) -> np.ndarray:
-    cdf = np.cumsum(weights)
-    slots = np.searchsorted(cdf, rng.random(n), side="right")
-    return idxs[np.minimum(slots, len(idxs) - 1)]
+def _unsupported(d: Distribution) -> TypeError:
+    return TypeError(
+        "MixtureDistribution supports only Uniform and Proportional sub-distributions, "
+        f"got {type(d).__name__}"
+    )
 
 
 class MixtureDistribution(Distribution):
@@ -38,6 +49,10 @@ class MixtureDistribution(Distribution):
         self.dists = [sub.d for sub in dists]
         self._weights = np.array([sub.p for sub in dists])
 
+        for d in self.dists:
+            if not isinstance(d, (Proportional, Uniform)):
+                raise _unsupported(d)
+
         assert np.isclose(self._weights.sum(), 1)
 
 
@@ -46,15 +61,8 @@ class MixtureDistribution(Distribution):
         Get the probabilities of the given elements
         under the current distribution.
         """
-        elements = np.asarray(elements)
-        idxs, weights = self.filter_defunct()
-
-        if len(idxs) == 0:
-            return np.zeros(len(elements), dtype=np.float64)
-
-        sub = np.array([self.dists[int(i)].probs(elements) for i in idxs])
-        p = weights.dot(sub)
-        return p
+        elements = np.asarray(elements, dtype=np.int64)
+        return mixture_probs(self._parts(), elements)
 
     def sample(self, rng: Rng, n: int):
         """
@@ -63,25 +71,7 @@ class MixtureDistribution(Distribution):
         sub-distributions according to their respective
         probabilities.
         """
-        out = np.empty(n, dtype=np.int64)
-        idxs, weights = self.filter_defunct()
-
-        if len(idxs) == 0:
-            if n == 0:
-                return out
-            raise ValueError("cannot sample from an all-defunct mixture distribution")
-
-        subs = _draw_parts(rng, idxs, weights, n)
-        elements, counts = np.unique(subs, return_counts=True)
-
-        total = 0
-        for element, count in zip(elements, counts, strict=True):
-            d = self.dists[int(element)]
-            next_t = total + count
-            out[total:next_t] = d.sample(rng, count)
-            total = next_t
-
-        return out[np.argsort(rng.random(n))]
+        return mixture_sample(rng, self._parts(), n)
 
     def stratified_sample(self, rng: Rng, n: int):
         """
@@ -93,25 +83,14 @@ class MixtureDistribution(Distribution):
         The `m < n` values sampled from each sub-distribution
         will be evenly spaced within that distribution.
         """
-        out = np.empty(n, dtype=np.int64)
-        idxs, weights = self.filter_defunct()
+        return mixture_stratified_sample(rng, self._parts(), n)
 
-        if len(idxs) == 0:
-            if n == 0:
-                return out
-            raise ValueError("cannot sample from an all-defunct mixture distribution")
-
-        subs = _draw_parts(rng, idxs, weights, n)
-        elements, counts = np.unique(subs, return_counts=True)
-
-        total = 0
-        for element, count in zip(elements, counts, strict=True):
-            d = self.dists[int(element)]
-            next_t = total + count
-            out[total:next_t] = d.stratified_sample(rng, count)
-            total = next_t
-
-        return out[np.argsort(rng.random(n))]
+    def sample_without_replacement(self, rng: Rng, n: int) -> np.ndarray:
+        """
+        Sample exactly `n` distinct values by rejection; raises
+        `ValueError` if a fixed draw budget runs out first.
+        """
+        return mixture_sample_without_replacement(rng, self._parts(), n)
 
 
     @property
@@ -119,28 +98,17 @@ class MixtureDistribution(Distribution):
         return all(d.is_defunct for d in self.dists)
 
 
-    def filter_defunct(self):
-        """
-        Remove any defunct distributions from the mixture, where
-        a defunct distribution is defined as having zero support.
-        """
+    def _parts(self) -> list[_Part]:
+        parts: list[_Part] = []
+        for d, w in zip(self.dists, self._weights):
+            if isinstance(d, Proportional):
+                parts.append(("proportional", (d._support[0], d.tree), float(w)))
+            elif isinstance(d, Uniform):
+                parts.append(("uniform", d._support, float(w)))
+            else:
+                raise _unsupported(d)
 
-        # fastpath for the common case that there are no defunct distributions
-        if all(not d.is_defunct for d in self.dists):
-            return np.arange(len(self.dists)), self._weights
-
-
-        dist_idxs = np.array([
-            i for i, d in enumerate(self.dists)
-            if not d.is_defunct
-        ], dtype=np.int64)
-
-        if len(dist_idxs) == 0:
-            return dist_idxs, np.array([], dtype=np.float64)
-
-        reweighted = self._weights[dist_idxs]
-        reweighted /= reweighted.sum()
-        return dist_idxs, reweighted
+        return parts
 
     def update(self, elements: np.ndarray, values: np.ndarray):
         """

@@ -1,9 +1,14 @@
 import pytest
 import numpy as np
 from discrete_dists import Rng
+from discrete_dists import Distribution
 from discrete_dists.mixture import MixtureDistribution, SubDistribution
 from discrete_dists.proportional import Proportional
 from discrete_dists.uniform import Uniform
+
+
+class Custom(Distribution):
+    pass
 
 
 @pytest.fixture
@@ -83,7 +88,7 @@ def test_mixture_sample_all_defunct(rng):
         SubDistribution(Proportional(10), p=0.5),
     ])
 
-    with pytest.raises(ValueError, match="all-defunct mixture"):
+    with pytest.raises(ValueError, match="no mass"):
         m.sample(rng, 1)
 
 
@@ -93,7 +98,7 @@ def test_mixture_stratified_sample_all_defunct(rng):
         SubDistribution(Proportional(10), p=0.5),
     ])
 
-    with pytest.raises(ValueError, match="all-defunct mixture"):
+    with pytest.raises(ValueError, match="no mass"):
         m.stratified_sample(rng, 1)
 
 
@@ -153,6 +158,33 @@ def test_mixture_probs_disjoint_supports():
     probs = m.probs(np.array([0, 1, 10, 11, 50]))
 
     assert np.allclose(probs, np.array([0.1, 0.1, 0.1, 0.1, 0.0]))
+
+
+def test_unsupported_sub_distribution_raises_type_error():
+    """
+    Only Uniform and Proportional parts can be sampled in Rust, so any other
+    sub-distribution must be rejected at construction with its type named.
+    """
+    with pytest.raises(TypeError, match="Custom"):
+        MixtureDistribution([
+            SubDistribution(Custom(), p=1.0),
+        ])
+
+
+def test_sample_without_replacement_fills_most_of_two_uniforms_for_every_seed():
+    """
+    Drawing 900 distinct values from two Uniform(1000) parts must succeed for
+    every seed, not only for most of them.
+    """
+    m = MixtureDistribution([
+        SubDistribution(Uniform(1000), p=0.5),
+        SubDistribution(Uniform(1000), p=0.5),
+    ])
+
+    for seed in range(20):
+        draws = m.sample_without_replacement(Rng(seed), 900)
+
+        assert len(np.unique(draws)) == 900
 
 
 def test_sample_without_replacement_is_unbiased_by_value():
