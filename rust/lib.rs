@@ -3,6 +3,7 @@ use pyo3::prelude::*;
 mod mixture;
 mod rng;
 mod uniform;
+mod uniform_set;
 mod utils;
 mod window;
 
@@ -11,6 +12,7 @@ mod window;
 fn rust(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<rng::Rng>()?;
     m.add_class::<utils::sumtree::SumTree>()?;
+    m.add_class::<uniform_set::UniformSet>()?;
     m.add_class::<window::WindowMixture>()?;
     m.add_function(wrap_pyfunction!(mixture::mixture_sample, m)?)?;
     m.add_function(wrap_pyfunction!(mixture::mixture_stratified_sample, m)?)?;
