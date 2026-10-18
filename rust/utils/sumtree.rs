@@ -17,6 +17,8 @@ pub struct SumTree {
     pub(crate) tree: Tree,
 }
 
+#[cold]
+#[inline(never)]
 pub(crate) fn to_py_err(e: TreeError) -> PyErr {
     match e {
         TreeError::IndexOutOfBounds { .. } | TreeError::OutOfSupport { .. } => {
