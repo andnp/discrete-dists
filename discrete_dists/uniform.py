@@ -1,5 +1,6 @@
 import numpy as np
 import numpy.typing as npt
+from discrete_dists._elements import as_elements
 from discrete_dists.distribution import Distribution, Support
 from discrete_dists.rust import (
     Rng,
@@ -31,6 +32,10 @@ class Uniform(Distribution):
         Update the support of the distribution to cover the
         given elements if these are outside the current support.
         """
+        elements = as_elements(elements)
+        if elements.size == 0:
+            return
+
         self._support = (
             min(self._support[0], elements.min()),
             max(self._support[1], elements.max() + 1)
@@ -90,7 +95,7 @@ class Uniform(Distribution):
         Get the probabilities of the given elements
         under the current distribution.
         """
-        elements = np.asarray(elements, dtype=np.int64)
+        elements = as_elements(elements)
         probs = uniform_probs(self._support[0], self._support[1], elements.ravel())
         return probs.reshape(elements.shape)
 

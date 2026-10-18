@@ -3,6 +3,7 @@ from typing import Sequence
 
 import numpy as np
 
+from discrete_dists._elements import as_elements
 from discrete_dists.distribution import Distribution
 from discrete_dists.proportional import Proportional
 from discrete_dists.rust import (
@@ -63,8 +64,7 @@ class MixtureDistribution(Distribution):
         Get the probabilities of the given elements
         under the current distribution.
         """
-        elements = np.asarray(elements, dtype=np.int64)
-        return mixture_probs(self._parts(), elements)
+        return mixture_probs(self._parts(), as_elements(elements))
 
     def sample(self, rng: Rng, n: int):
         """

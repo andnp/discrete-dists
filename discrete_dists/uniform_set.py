@@ -1,5 +1,6 @@
 import numpy as np
 
+from discrete_dists._elements import as_elements
 from discrete_dists.distribution import Distribution
 from discrete_dists.rust import Rng
 from discrete_dists.rust import UniformSet as _RustUniformSet
@@ -30,13 +31,13 @@ class UniformSet(Distribution):
         return self._inner.contains(int(element))
 
     def insert(self, elements) -> None:
-        self._inner.insert(np.asarray(elements, dtype=np.int64))
+        self._inner.insert(as_elements(elements))
 
     def remove(self, elements) -> None:
-        self._inner.remove(np.asarray(elements, dtype=np.int64))
+        self._inner.remove(as_elements(elements))
 
     def probs(self, elements) -> np.ndarray:
-        return self._inner.probs(np.asarray(elements, dtype=np.int64))
+        return self._inner.probs(as_elements(elements))
 
     def sample(self, rng: Rng, n: int) -> np.ndarray:
         return self._inner.sample(rng, n)
