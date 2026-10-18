@@ -142,6 +142,7 @@ pub enum TreeError {
     NotEnoughElements { requested: usize, found: usize },
     InvalidWindow { reason: String },
     InvalidPriority { reason: String },
+    InvalidGroups { reason: String },
 }
 
 impl fmt::Display for TreeError {
@@ -176,6 +177,7 @@ impl fmt::Display for TreeError {
             ),
             TreeError::InvalidWindow { reason } => write!(f, "invalid window: {reason}"),
             TreeError::InvalidPriority { reason } => write!(f, "invalid priority: {reason}"),
+            TreeError::InvalidGroups { reason } => write!(f, "invalid groups: {reason}"),
         }
     }
 }
@@ -265,11 +267,17 @@ impl Tree {
 
     // Slow path for query: never steps into a zero-weight subtree, so it
     // lands on a positive leaf whenever the tree has positive total.
+    #[inline]
     fn descend_positive(&self, value: f64) -> i64 {
         let total_size = self.total_size as usize;
-        let mut node = 1usize;
+        (self.descend_positive_to(1, total_size, value) - total_size) as i64
+    }
+
+    // Stops at the first node at or past `bound`; `value` is relative to the subtree rooted at `node`.
+    #[inline]
+    fn descend_positive_to(&self, mut node: usize, bound: usize, value: f64) -> usize {
         let mut total = 0.0;
-        while node < total_size {
+        while node < bound {
             let idx = 2 * node;
             let left = self.data[idx];
             let right = self.data[idx + 1];
@@ -280,7 +288,7 @@ impl Tree {
                 node = idx;
             }
         }
-        (node - total_size) as i64
+        node
     }
 
     pub fn update(&mut self, idxs: &[i64], values: &[f64]) -> Result<(), TreeError> {
@@ -479,6 +487,54 @@ impl Tree {
             .map(|j| ((j as f64 + rng.next_f64()) / n) * total)
             .collect();
         self.query(&values, out);
+
+        Ok(())
+    }
+
+    /// Picks up to `groups` aligned blocks of `group_size` leaves, each in proportion to its mass,
+    /// then fills slot `j` from block `j % groups` in proportion to weight. Each slot's marginal is
+    /// still `weight / total`; only the draws within one batch are correlated.
+    pub fn sample_grouped(
+        &self,
+        rng: &mut Rng,
+        groups: usize,
+        group_size: u32,
+        out: &mut [i64],
+    ) -> Result<(), TreeError> {
+        if out.is_empty() {
+            return Ok(());
+        }
+        if groups == 0 {
+            return Err(TreeError::InvalidGroups {
+                reason: "groups must be at least 1".to_string(),
+            });
+        }
+        if !group_size.is_power_of_two() {
+            return Err(TreeError::InvalidGroups {
+                reason: format!("group_size must be a power of two, got {group_size}"),
+            });
+        }
+        self.sampling_total()?;
+
+        let total_size = self.total_size as usize;
+        let shift = group_size
+            .trailing_zeros()
+            .min(self.total_size.trailing_zeros());
+        // Group nodes occupy [group_base, 2 * group_base); group b covers leaves [b << shift, (b + 1) << shift).
+        let group_base = total_size >> shift;
+        // Stored values are divided by scale, so the draws must use the same units.
+        let total = self.data[1];
+        let draws = groups.min(out.len());
+        let group_nodes: Vec<usize> = (0..draws)
+            .map(|_| self.descend_positive_to(1, group_base, rng.next_f64() * total))
+            .collect();
+
+        for (j, x) in out.iter_mut().enumerate() {
+            let group = group_nodes[j % draws];
+            let leaf =
+                self.descend_positive_to(group, total_size, rng.next_f64() * self.data[group]);
+            *x = (leaf - total_size) as i64;
+        }
 
         Ok(())
     }
@@ -786,6 +842,175 @@ mod tests {
         tree.stratified_sample(&mut Rng::new(9), &mut out).unwrap();
 
         assert_eq!(out, [0, 1, 2, 3, 4]);
+    }
+
+    fn grouped_frequencies(
+        tree: &Tree,
+        groups: usize,
+        group_size: u32,
+        slots: usize,
+        batches: u64,
+    ) -> Vec<f64> {
+        let mut counts = vec![0usize; tree.size() as usize];
+        let mut out = vec![0i64; slots];
+        let mut rng = Rng::new(17);
+        for _ in 0..batches {
+            tree.sample_grouped(&mut rng, groups, group_size, &mut out)
+                .unwrap();
+            for &x in &out {
+                counts[x as usize] += 1;
+            }
+        }
+
+        let draws = (slots as u64 * batches) as f64;
+        counts.iter().map(|&c| c as f64 / draws).collect()
+    }
+
+    #[test]
+    fn sample_grouped_marginals_match_weights_for_any_block_shape() {
+        let mut tree = Tree::new(8);
+        tree.update(&[0, 2, 4, 5, 6, 7], &[1.0, 2.0, 3.0, 4.0, 0.5, 1.5])
+            .unwrap();
+
+        for (groups, group_size) in [(1, 4), (2, 4), (3, 2), (8, 1), (2, 8)] {
+            let freq = grouped_frequencies(&tree, groups, group_size, 8, 50_000);
+
+            for (k, f) in freq.iter().enumerate() {
+                let expected = tree.get_value(k as i64).unwrap() / tree.total();
+                assert!(
+                    (f - expected).abs() < 0.01,
+                    "({groups}, {group_size}) leaf {k}: got {f}, expected {expected}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn sample_grouped_marginals_hold_for_partial_last_block() {
+        let mut tree = Tree::new(10);
+        let values: Vec<f64> = (1..=10).map(f64::from).collect();
+        tree.update(&(0..10).collect::<Vec<i64>>(), &values)
+            .unwrap();
+
+        let freq = grouped_frequencies(&tree, 2, 4, 8, 50_000);
+
+        for (k, f) in freq.iter().enumerate() {
+            let expected = values[k] / 55.0;
+            assert!((f - expected).abs() < 0.01, "leaf {k}: got {f}");
+        }
+    }
+
+    #[test]
+    fn sample_grouped_touches_at_most_k_blocks() {
+        let mut tree = Tree::new(100);
+        let values: Vec<f64> = (0..100).map(|i| f64::from(i % 7 + 1)).collect();
+        tree.update(&(0..100).collect::<Vec<i64>>(), &values)
+            .unwrap();
+        let mut out = vec![0i64; 50];
+
+        for (groups, group_size) in [(1usize, 8u32), (3, 8), (2, 16)] {
+            for seed in 0..200 {
+                tree.sample_grouped(&mut Rng::new(seed), groups, group_size, &mut out)
+                    .unwrap();
+
+                let mut blocks: Vec<i64> = out.iter().map(|e| e / i64::from(group_size)).collect();
+                blocks.sort_unstable();
+                blocks.dedup();
+                assert!(
+                    blocks.len() <= groups,
+                    "({groups}, {group_size}) seed {seed}: {blocks:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn sample_grouped_block_at_least_tree_size_is_the_root_block() {
+        let mut tree = Tree::new(8);
+        tree.update(&[1, 4, 6], &[1.0, 2.0, 3.0]).unwrap();
+        let mut whole = [0i64; 64];
+        let mut oversized = [0i64; 64];
+
+        tree.sample_grouped(&mut Rng::new(3), 1, 8, &mut whole)
+            .unwrap();
+        tree.sample_grouped(&mut Rng::new(3), 1, 1 << 20, &mut oversized)
+            .unwrap();
+
+        assert_eq!(whole, oversized);
+    }
+
+    #[test]
+    fn sample_grouped_never_draws_zero_mass_blocks_or_zero_weight_leaves() {
+        let mut tree = Tree::new(16);
+        tree.update(&[2, 3, 12], &[1.0, 2.0, 3.0]).unwrap();
+        let mut out = [0i64; 32];
+
+        for seed in 0..500 {
+            tree.sample_grouped(&mut Rng::new(seed), 4, 4, &mut out)
+                .unwrap();
+
+            assert!(
+                out.iter().all(|e| [2, 3, 12].contains(e)),
+                "seed {seed}: {out:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn sample_grouped_rejects_zero_groups_and_non_power_of_two_block_sizes() {
+        let mut tree = Tree::new(8);
+        tree.update(&[0], &[1.0]).unwrap();
+        let mut out = [-7i64; 4];
+
+        for (groups, group_size) in [(0usize, 4u32), (2, 0), (2, 3), (2, 6)] {
+            let err = tree
+                .sample_grouped(&mut Rng::new(1), groups, group_size, &mut out)
+                .unwrap_err();
+
+            assert!(
+                matches!(err, TreeError::InvalidGroups { .. }),
+                "({groups}, {group_size}): {err:?}"
+            );
+        }
+        assert_eq!(out, [-7; 4]);
+    }
+
+    #[test]
+    fn sample_grouped_without_draws_succeeds_and_without_mass_errors() {
+        let mut rng = Rng::new(1);
+        let mut out = [-7i64; 4];
+
+        assert_eq!(
+            Tree::empty().sample_grouped(&mut rng, 2, 4, &mut []),
+            Ok(())
+        );
+        assert_eq!(Tree::new(5).sample_grouped(&mut rng, 2, 4, &mut []), Ok(()));
+        for tree in [Tree::empty(), Tree::new(5)] {
+            assert_eq!(
+                tree.sample_grouped(&mut rng, 2, 4, &mut out),
+                Err(TreeError::EmptyDistribution)
+            );
+        }
+        assert_eq!(out, [-7; 4]);
+    }
+
+    #[test]
+    fn sample_grouped_on_non_power_of_two_size_stays_in_range_and_within_k_blocks() {
+        let mut tree = Tree::new(1000);
+        tree.update(&(0..1000).collect::<Vec<i64>>(), &[1.0; 1000])
+            .unwrap();
+        let mut out = vec![0i64; 256];
+
+        for seed in 0..20 {
+            tree.sample_grouped(&mut Rng::new(seed), 4, 64, &mut out)
+                .unwrap();
+
+            assert!(out.iter().all(|e| (0..1000).contains(e)), "seed {seed}");
+            let mut blocks: Vec<i64> = out.iter().map(|e| e / 64).collect();
+            blocks.sort_unstable();
+            blocks.dedup();
+            assert!(blocks.len() <= 4, "seed {seed}: {blocks:?}");
+        }
     }
 
     proptest! {
