@@ -166,9 +166,21 @@ jobs:
               raise SystemExit("failed to update Cargo.lock discrete-dists package versions")
 
           cargo_lock_path.write_text(cargo_lock_text)
+
+          uv_lock_path = Path("uv.lock")
+          uv_lock_text, uv_replacements = re.subn(
+              r'(?m)(^name = "discrete-dists"\nversion = ")([^"]+)(")',
+              rf'\g<1>{release_tag}\3',
+              uv_lock_path.read_text(),
+          )
+
+          if uv_replacements != 1:
+              raise SystemExit("failed to update uv.lock discrete-dists version")
+
+          uv_lock_path.write_text(uv_lock_text)
           PY
 
-          git add CHANGELOG.md pyproject.toml Cargo.toml Cargo.lock
+          git add CHANGELOG.md pyproject.toml Cargo.toml Cargo.lock uv.lock
           git commit -m "bump: sync release metadata for $repair_tag"
 
       - name: Push repaired release metadata
