@@ -17,7 +17,7 @@ This repository currently verifies cleanly with the following local sequence:
 - `.github/workflows/CI.yml`
   - runs on tags
   - repeats the test job before building wheels/sdist and uploading to PyPI
-  - builds wheel artifacts explicitly for Python 3.12, 3.13, and 3.14 across the supported OS/arch matrix
+  - builds wheel artifacts explicitly for Python 3.10 through 3.15 across the supported OS/arch matrix
 - `.github/workflows/tag.yml`
   - runs on pushes to `main`
   - uses `ubuntu-slim` because it only needs lightweight git/Python release automation
