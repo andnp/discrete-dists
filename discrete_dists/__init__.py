@@ -4,6 +4,7 @@ from discrete_dists.distribution import Distribution, Support
 from discrete_dists.mixture import MixtureDistribution, SubDistribution
 from discrete_dists.prioritized import Prioritized
 from discrete_dists.proportional import Proportional
+from discrete_dists.reservoir import WeightedReservoir
 from discrete_dists.rust import Rng
 from discrete_dists.uniform import Uniform
 from discrete_dists.uniform_set import UniformSet
@@ -21,6 +22,7 @@ __all__ = [
     "Support",
     "Uniform",
     "UniformSet",
+    "WeightedReservoir",
     "Window",
     "WindowMixture",
 ]

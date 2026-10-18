@@ -6,9 +6,11 @@ from discrete_dists import (
     MixtureDistribution,
     Prioritized,
     Proportional,
+    Rng,
     SubDistribution,
     Uniform,
     UniformSet,
+    WeightedReservoir,
     Window,
     WindowMixture,
 )
@@ -60,6 +62,10 @@ ELEMENT_CALLS = {
     "UniformSet.probs": (
         lambda: UniformSet(10),
         lambda d, e: d.probs(e),
+    ),
+    "WeightedReservoir.offer": (
+        lambda: WeightedReservoir(10),
+        lambda d, e: d.offer(Rng(0), e, np.ones(len(e))),
     ),
     "WindowMixture.insert": (
         lambda: WindowMixture(10, [Window()]),
