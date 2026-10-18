@@ -2,6 +2,7 @@ from discrete_dists.categorical import Categorical
 from discrete_dists.distribution import Distribution, Support
 from discrete_dists.mixture import MixtureDistribution, SubDistribution
 from discrete_dists.proportional import Proportional
+from discrete_dists.rust import Rng
 from discrete_dists.uniform import Uniform
 
 __all__ = [
@@ -9,6 +10,7 @@ __all__ = [
     "Distribution",
     "MixtureDistribution",
     "Proportional",
+    "Rng",
     "SubDistribution",
     "Support",
     "Uniform",
