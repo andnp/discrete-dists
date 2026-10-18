@@ -144,7 +144,7 @@ jobs:
           cargo_path = Path("Cargo.toml")
           cargo_text = cargo_path.read_text()
           cargo_text, replacements = re.subn(
-              r'(?ms)(\[package\]\s.*?^version\s*=\s*")([^"]+)(")',
+              r'(?ms)(\[workspace\.package\]\s.*?^version\s*=\s*")([^"]+)(")',
               rf'\g<1>{release_tag}\3',
               cargo_text,
               count=1,
@@ -157,14 +157,13 @@ jobs:
 
           cargo_lock_path = Path("Cargo.lock")
           cargo_lock_text, lock_replacements = re.subn(
-              r'(?m)(^name = "discrete-dists"\nversion = ")([^"]+)(")',
+              r'(?m)(^name = "discrete-dists(?:-core)?"\nversion = ")([^"]+)(")',
               rf'\g<1>{release_tag}\3',
               cargo_lock_path.read_text(),
-              count=1,
           )
 
-          if lock_replacements != 1:
-              raise SystemExit("failed to update Cargo.lock discrete-dists version")
+          if lock_replacements != 2:
+              raise SystemExit("failed to update Cargo.lock discrete-dists package versions")
 
           cargo_lock_path.write_text(cargo_lock_text)
           PY

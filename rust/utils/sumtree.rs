@@ -1,5 +1,5 @@
-use crate::tree::{Tree, TreeError};
 use bincode::serde::{decode_from_slice, encode_to_vec};
+use discrete_dists_core::{Tree, TreeError};
 use numpy::{Element, PyArray1, PyReadonlyArray1, ToPyArray};
 use pyo3::exceptions::{PyIndexError, PyValueError};
 use pyo3::{

@@ -33,9 +33,17 @@ name = "discrete-dists"
 version = "1.2.3"
 dependencies = [
  "bincode",
- "ndarray",
+ "discrete-dists-core",
  "numpy",
  "pyo3",
+ "serde",
+]
+
+[[package]]
+name = "discrete-dists-core"
+version = "1.2.3"
+dependencies = [
+ "ndarray",
  "serde",
 ]
 
