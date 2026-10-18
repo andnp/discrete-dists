@@ -19,3 +19,7 @@ criterion = { package = "codspeed-criterion-compat", version = "~5.0" }
 [[bench]]
 name = "tree"
 harness = false
+
+[[bench]]
+name = "window"
+harness = false
