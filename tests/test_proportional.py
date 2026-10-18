@@ -148,6 +148,15 @@ def test_proportional_probs_respect_support():
     assert np.allclose(probs, np.array([0.0, 0.2, 0.2, 0.2, 0.0]))
 
 
+def test_proportional_probs_are_zero_without_mass():
+    p = Proportional((10, 15))
+
+    probs = p.probs(np.arange(8, 17))
+
+    assert probs.shape == (9,)
+    assert not probs.any()
+
+
 def test_proportional_update_support_same_width_shift(rng):
     p = Proportional(5)
     p.update(
