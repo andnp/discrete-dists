@@ -1,3 +1,14 @@
+## 1.3.0 (2026-10-18)
+
+### Feat
+
+- **bindings**: declare the extension safe without the GIL
+
+### Fix
+
+- **release**: sync uv.lock in the tag repair step
+- **release**: keep uv.lock in step with version bumps
+
 ## 1.2.4 (2026-10-18)
 
 ### Refactor
