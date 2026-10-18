@@ -1,3 +1,20 @@
+## 1.4.0 (2026-10-18)
+
+### Feat
+
+- **sumtree**: expose scale to Python
+- **core**: add O(1) global scale
+
+### Refactor
+
+- **core**: serialize the tree through a wire format
+
+### Perf
+
+- **core**: skip bounds checks in the hot loops
+- **build**: enable fat LTO for release builds
+- **core**: store the tree as a flat heap
+
 ## 1.3.0 (2026-10-18)
 
 ### Feat
