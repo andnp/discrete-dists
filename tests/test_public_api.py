@@ -2,6 +2,7 @@ from discrete_dists import (
     Categorical,
     Distribution,
     MixtureDistribution,
+    Prioritized,
     Proportional,
     SubDistribution,
     Support,
@@ -17,6 +18,7 @@ def test_public_api_exports():
     assert issubclass(Categorical, Proportional)
     assert Distribution.__name__ == "Distribution"
     assert MixtureDistribution.__name__ == "MixtureDistribution"
+    assert Prioritized.__name__ == "Prioritized"
     assert SubDistribution.__name__ == "SubDistribution"
     assert Uniform.__name__ == "Uniform"
     assert UniformSet.__name__ == "UniformSet"
