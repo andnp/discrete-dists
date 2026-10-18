@@ -22,6 +22,7 @@ fn rust(m: &Bound<'_, PyModule>) -> PyResult<()> {
     )?)?;
     m.add_function(wrap_pyfunction!(mixture::mixture_probs, m)?)?;
     m.add_function(wrap_pyfunction!(utils::sumtree::proportional_probs, m)?)?;
+    m.add_function(wrap_pyfunction!(uniform::uniform_probs, m)?)?;
     m.add_function(wrap_pyfunction!(uniform::uniform_sample, m)?)?;
     m.add_function(wrap_pyfunction!(uniform::uniform_stratified_sample, m)?)?;
     m.add_function(wrap_pyfunction!(

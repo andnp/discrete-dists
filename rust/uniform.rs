@@ -1,7 +1,7 @@
 use crate::rng::Rng;
-use crate::utils::sumtree::to_py_err;
+use crate::utils::sumtree::{contiguous, to_py_err};
 use discrete_dists_core::{Distribution, Uniform};
-use numpy::{PyArray1, ToPyArray};
+use numpy::{PyArray1, PyReadonlyArray1, ToPyArray};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
@@ -62,6 +62,21 @@ pub fn uniform_sample_without_replacement<'py>(
     let mut out = Vec::with_capacity(n);
     py.detach(|| dist.sample_without_replacement(core, n, &mut out))
         .map_err(to_py_err)?;
+
+    Ok(out.to_pyarray(py))
+}
+
+#[pyfunction]
+pub fn uniform_probs<'py>(
+    lo: i64,
+    hi: i64,
+    elements: PyReadonlyArray1<i64>,
+    py: Python<'py>,
+) -> PyResult<Bound<'py, PyArray1<f64>>> {
+    let dist = uniform(lo, hi)?;
+    let elements = contiguous(&elements);
+    let mut out = vec![0.0; elements.len()];
+    dist.probs(&elements, &mut out);
 
     Ok(out.to_pyarray(py))
 }

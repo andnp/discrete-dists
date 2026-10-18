@@ -124,6 +124,17 @@ def test_uniform_probs_defunct():
     assert np.allclose(probs, np.zeros(3))
 
 
+def test_uniform_probs_keep_input_shape():
+    u = Uniform((2, 6))
+
+    probs = u.probs(np.arange(12).reshape(3, 4))
+
+    expected = np.zeros(12)
+    expected[2:6] = 0.25
+    assert probs.shape == (3, 4)
+    assert np.allclose(probs, expected.reshape(3, 4))
+
+
 def test_uniform_sample_matches_probs(rng):
     u = Uniform(5)
 

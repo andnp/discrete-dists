@@ -3,6 +3,7 @@ import numpy.typing as npt
 from discrete_dists.distribution import Distribution, Support
 from discrete_dists.rust import (
     Rng,
+    uniform_probs,
     uniform_sample,
     uniform_sample_without_replacement,
     uniform_stratified_sample,
@@ -89,15 +90,9 @@ class Uniform(Distribution):
         Get the probabilities of the given elements
         under the current distribution.
         """
-        elements = np.asarray(elements)
-        d = self._support[1] - self._support[0]
-        if d == 0:
-            return np.zeros_like(elements, dtype=np.float64)
-
-        probs = np.zeros_like(elements, dtype=np.float64)
-        in_support = (elements >= self._support[0]) & (elements < self._support[1])
-        probs[in_support] = 1 / d
-        return probs
+        elements = np.asarray(elements, dtype=np.int64)
+        probs = uniform_probs(self._support[0], self._support[1], elements.ravel())
+        return probs.reshape(elements.shape)
 
 
     @property
