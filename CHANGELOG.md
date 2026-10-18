@@ -1,3 +1,58 @@
+## 2.0.0 (2026-10-18)
+
+### BREAKING CHANGE
+
+- MixtureDistribution only accepts Uniform and Proportional (including Categorical) parts.
+Co-Authored-By: Claude Haiku 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01Ca616ozgHNvyKXy12ViPUj
+- sampling methods take a `discrete_dists.Rng` instead of a numpy Generator.
+Co-Authored-By: Claude Haiku 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01Ca616ozgHNvyKXy12ViPUj
+
+### Feat
+
+- **bindings**: expose grouped sampling to Python
+- **core**: sample a batch from at most k groups
+- **bindings**: expose WeightedReservoir to Python
+- **core**: add a weighted reservoir
+- **bindings**: allow Alias in MixtureDistribution
+- **bindings**: expose Alias to Python
+- **core**: add an alias table distribution
+- **bindings**: expose Prioritized to Python
+- **core**: add Prioritized with importance weights
+- **core**: add a min/max segment tree
+- **bindings**: allow UniformSet in MixtureDistribution
+- **bindings**: expose UniformSet to Python
+- **core**: add UniformSet with O(1) insert, remove, sample
+- **bindings**: expose WindowMixture to Python
+- **core**: decay window weights by half-life
+- **core**: add WindowMixture over flat age windows
+- **bindings**: back MixtureDistribution with Rust
+- **bindings**: back Uniform, Proportional with Rust sampling
+- **bindings**: expose the RNG to Python
+- **core**: sample exactly without replacement
+- **core**: add a mixture over distributions
+- **core**: add Uniform, Proportional distributions
+- **core**: sample from the tree
+- **core**: add a seedable sampling RNG
+
+### Fix
+
+- **bindings**: reject non-integer element arrays
+
+### Refactor
+
+- **core**: let Proportional borrow its tree
+
+### Perf
+
+- **bindings**: keep error conversion out of hot paths
+- **core**: update Proportional without collecting offsets
+- **core**: validate tree updates without allocating
+- **bindings**: update Proportional in one Rust call
+- **bindings**: compute Uniform probs in Rust
+- **bindings**: compute Proportional probs in Rust
+
 ## 1.4.0 (2026-10-18)
 
 ### Feat
