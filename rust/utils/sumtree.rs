@@ -49,13 +49,18 @@ impl SumTree {
     }
 
     fn set_validated_value(&mut self, checked_idx: usize, value: f64) {
-        let mut sub_idx = checked_idx;
-        let old = self.raw[0][sub_idx];
+        self.raw[0][checked_idx] = value;
 
-        self.raw.iter_mut().for_each(|level| {
-            level[sub_idx] += value - old;
+        let mut sub_idx = checked_idx;
+        // Each parent is rebuilt as node + sibling rather than accumulating
+        // deltas, so sums never drift; the new node value is already known,
+        // so only the sibling needs reading.
+        let mut node = value;
+        for k in 1..self.raw.len() {
+            node += self.raw[k - 1][sub_idx ^ 1];
             sub_idx /= 2;
-        });
+            self.raw[k][sub_idx] = node;
+        }
     }
 }
 

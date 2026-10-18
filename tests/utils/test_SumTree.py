@@ -126,3 +126,22 @@ class TestSumTree:
 
         with pytest.raises(ValueError, match="Cannot sample"):
             tree.stratified_sample(rng, 1)
+
+    def test_updates_do_not_accumulate_drift(self):
+        """
+        Repeated updates must leave leaves and totals exact. Propagating deltas
+        drifts the sums, which can make the total negative and break sampling.
+        """
+        tree = SumTree(4)
+        rng = np.random.default_rng(1)
+        for _ in range(200_000):
+            i = int(rng.integers(4))
+            tree.update([i], [float(rng.uniform(0, 1e6))])
+
+        tree.update(np.arange(4), np.array([1e-9, 0, 0, 0]))
+
+        assert tree.get_value(0) == 1e-9
+        assert tree.total() == 1e-9
+
+        samples = tree.sample(np.random.default_rng(0), 100)
+        assert np.all(samples == 0)
