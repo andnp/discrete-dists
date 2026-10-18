@@ -4,8 +4,10 @@ use std::cmp::min;
 use std::fmt;
 use std::iter;
 
+mod dist;
 mod rng;
 
+pub use dist::{Distribution, Proportional, Uniform};
 pub use rng::Rng;
 
 // Renormalize when the multiplier leaves this range, so stored weights stay far from overflow and underflow.
@@ -122,6 +124,8 @@ pub enum TreeError {
     LengthMismatch { idxs: usize, values: usize },
     InvalidScale { factor: f64 },
     EmptyDistribution,
+    InvalidSupport { reason: String },
+    OutOfSupport { element: i64, lo: i64, hi: i64 },
 }
 
 impl fmt::Display for TreeError {
@@ -145,6 +149,10 @@ impl fmt::Display for TreeError {
             }
             TreeError::EmptyDistribution => {
                 write!(f, "cannot sample from a distribution with no mass")
+            }
+            TreeError::InvalidSupport { reason } => write!(f, "invalid support: {reason}"),
+            TreeError::OutOfSupport { element, lo, hi } => {
+                write!(f, "element {element} is outside support [{lo}, {hi})")
             }
         }
     }
