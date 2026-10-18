@@ -1,4 +1,5 @@
 from discrete_dists import (
+    Alias,
     Categorical,
     Distribution,
     MixtureDistribution,
@@ -14,6 +15,7 @@ from discrete_dists import (
 
 
 def test_public_api_exports():
+    assert Alias.__name__ == "Alias"
     assert Categorical.__name__ == "Categorical"
     assert issubclass(Categorical, Proportional)
     assert Distribution.__name__ == "Distribution"

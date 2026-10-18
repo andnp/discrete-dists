@@ -1,3 +1,4 @@
+from discrete_dists.alias import Alias
 from discrete_dists.categorical import Categorical
 from discrete_dists.distribution import Distribution, Support
 from discrete_dists.mixture import MixtureDistribution, SubDistribution
@@ -9,6 +10,7 @@ from discrete_dists.uniform_set import UniformSet
 from discrete_dists.window import Window, WindowMixture
 
 __all__ = [
+    "Alias",
     "Categorical",
     "Distribution",
     "MixtureDistribution",

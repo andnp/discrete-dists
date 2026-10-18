@@ -2,6 +2,7 @@ import numpy as np
 import pytest
 
 from discrete_dists import (
+    Alias,
     MixtureDistribution,
     Prioritized,
     Proportional,
@@ -20,6 +21,10 @@ def filled_prioritized():
 
 # Each entry builds a fresh distribution and calls one method that takes element indices.
 ELEMENT_CALLS = {
+    "Alias.probs": (
+        lambda: Alias([1.0, 1.0]),
+        lambda d, e: d.probs(e),
+    ),
     "Prioritized.probs": (
         lambda: Prioritized(10, 1.0),
         lambda d, e: d.probs(e),
