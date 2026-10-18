@@ -291,16 +291,13 @@ impl Tree {
             });
         }
 
-        let validated = iter::zip(idxs, values)
-            .map(|(idx, value)| {
-                let checked_idx = self.checked_index(*idx)?;
-                Self::validate_weight(*idx, *value)?;
-                Ok((checked_idx, *value))
-            })
-            .collect::<Result<Vec<_>, TreeError>>()?;
-
-        for (checked_idx, value) in validated {
-            self.set_validated_value(checked_idx, value);
+        // Every pair is checked before any is written, so a bad batch leaves the tree unchanged.
+        for (&idx, &value) in iter::zip(idxs, values) {
+            self.checked_index(idx)?;
+            Self::validate_weight(idx, value)?;
+        }
+        for (&idx, &value) in iter::zip(idxs, values) {
+            self.set_validated_value(idx as usize, value);
         }
 
         Ok(())
