@@ -1,6 +1,6 @@
 import numpy as np
 from discrete_dists.distribution import Distribution, Support
-from discrete_dists.rust import Rng
+from discrete_dists.rust import Rng, proportional_probs
 from discrete_dists.utils.SumTree import SumTree
 
 class Proportional(Distribution):
@@ -39,22 +39,11 @@ class Proportional(Distribution):
         Get the probabilities of the given elements
         in the distribution.
         """
-        elements = np.asarray(elements)
-        probs = np.zeros(len(elements), dtype=np.float64)
-
-        in_support = (
-            (elements >= self._support[0]) &
-            (elements < self._support[1])
+        return proportional_probs(
+            self._support[0],
+            self.tree,
+            np.asarray(elements, dtype=np.int64),
         )
-
-        t = self.tree.total()
-        if t == 0 or not np.any(in_support):
-            return probs
-
-        shifted = elements[in_support] - self._support[0]
-        v = self.tree.get_values(shifted)
-        probs[in_support] = v / t
-        return probs
 
 
     @property

@@ -184,3 +184,17 @@ impl SumTree {
         Ok(PyBytes::new(py, &bytes))
     }
 }
+
+#[pyfunction]
+pub fn proportional_probs<'py>(
+    lo: i64,
+    tree: PyRef<'_, SumTree>,
+    elements: PyReadonlyArray1<i64>,
+    py: Python<'py>,
+) -> Bound<'py, PyArray1<f64>> {
+    let elements = contiguous(&elements);
+    let mut out = vec![0.0; elements.len()];
+    Proportional::from_tree(lo, &tree.tree).probs(&elements, &mut out);
+
+    out.to_pyarray(py)
+}
