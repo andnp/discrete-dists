@@ -1,9 +1,11 @@
+use crate::alias::Alias;
 use crate::rng::Rng;
 use crate::uniform::uniform;
 use crate::uniform_set::UniformSet;
 use crate::utils::sumtree::{to_py_err, SumTree};
 use discrete_dists_core::{
-    mixture, Distribution, Proportional, Tree, TreeError, Uniform, UniformSet as CoreUniformSet,
+    mixture, Alias as CoreAlias, Distribution, Proportional, Tree, TreeError, Uniform,
+    UniformSet as CoreUniformSet,
 };
 use numpy::{PyArray1, PyReadonlyArray1, ToPyArray};
 use pyo3::exceptions::PyValueError;
@@ -14,12 +16,14 @@ enum Source<'py> {
     Uniform(Uniform),
     Proportional(i64, PyRef<'py, SumTree>),
     UniformSet(PyRef<'py, UniformSet>),
+    Alias(PyRef<'py, Alias>),
 }
 
 enum Part<'a> {
     Uniform(Uniform),
     Proportional(Proportional<&'a Tree>),
     UniformSet(&'a CoreUniformSet),
+    Alias(&'a CoreAlias),
 }
 
 impl Part<'_> {
@@ -28,6 +32,7 @@ impl Part<'_> {
             Part::Uniform(u) => u,
             Part::Proportional(p) => p,
             Part::UniformSet(s) => *s,
+            Part::Alias(a) => *a,
         }
     }
 }
@@ -47,6 +52,7 @@ fn parse_sources<'py>(parts: &Bound<'py, PyList>) -> PyResult<Vec<(Source<'py>, 
                     Source::Proportional(lo, tree)
                 }
                 "uniform_set" => Source::UniformSet(payload.extract()?),
+                "alias" => Source::Alias(payload.extract()?),
                 other => {
                     return Err(PyValueError::new_err(format!(
                         "unknown mixture part kind {other:?}"
@@ -74,6 +80,7 @@ fn with_parts<R>(
                     Part::Proportional(Proportional::from_tree(*lo, &tree.tree))
                 }
                 Source::UniformSet(set) => Part::UniformSet(&set.inner),
+                Source::Alias(alias) => Part::Alias(&alias.inner),
             };
 
             (part, *weight)

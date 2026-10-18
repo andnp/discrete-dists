@@ -4,8 +4,10 @@ from typing import Sequence
 import numpy as np
 
 from discrete_dists._elements import as_elements
+from discrete_dists.alias import Alias
 from discrete_dists.distribution import Distribution
 from discrete_dists.proportional import Proportional
+from discrete_dists.rust import Alias as _RustAlias
 from discrete_dists.rust import (
     Rng,
     mixture_probs,
@@ -18,7 +20,7 @@ from discrete_dists.uniform import Uniform
 from discrete_dists.uniform_set import UniformSet
 from discrete_dists.utils.SumTree import SumTree
 
-_Part = tuple[str, tuple[int, int] | tuple[int, SumTree] | _RustUniformSet, float]
+_Part = tuple[str, tuple[int, int] | tuple[int, SumTree] | _RustUniformSet | _RustAlias, float]
 
 
 @dataclass
@@ -33,7 +35,7 @@ class SubDistribution:
 
 def _unsupported(d: Distribution) -> TypeError:
     return TypeError(
-        "MixtureDistribution supports only Uniform, UniformSet and Proportional sub-distributions, "
+        "MixtureDistribution supports only Uniform, UniformSet, Alias and Proportional sub-distributions, "
         f"got {type(d).__name__}"
     )
 
@@ -53,7 +55,7 @@ class MixtureDistribution(Distribution):
         self._weights = np.array([sub.p for sub in dists])
 
         for d in self.dists:
-            if not isinstance(d, (Proportional, Uniform, UniformSet)):
+            if not isinstance(d, (Proportional, Uniform, UniformSet, Alias)):
                 raise _unsupported(d)
 
         assert np.isclose(self._weights.sum(), 1)
@@ -109,6 +111,8 @@ class MixtureDistribution(Distribution):
                 parts.append(("uniform", d._support, float(w)))
             elif isinstance(d, UniformSet):
                 parts.append(("uniform_set", d._inner, float(w)))
+            elif isinstance(d, Alias):
+                parts.append(("alias", d._inner, float(w)))
             else:
                 raise _unsupported(d)
 
@@ -119,7 +123,7 @@ class MixtureDistribution(Distribution):
         Update the the proportion values for a given set
         of elements. This changes the shape of the distribution.
 
-        UniformSet parts have no weights, so they are left unchanged.
+        UniformSet and Alias parts have no updatable weights, so they are left unchanged.
         """
         for d in self.dists:
             if isinstance(d, Proportional):

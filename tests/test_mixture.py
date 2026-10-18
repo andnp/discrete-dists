@@ -1,5 +1,6 @@
 import pytest
 import numpy as np
+from discrete_dists import Alias
 from discrete_dists import Rng
 from discrete_dists import Distribution
 from discrete_dists.mixture import MixtureDistribution, SubDistribution
@@ -247,3 +248,48 @@ def test_update_leaves_uniform_set_part_unchanged():
 
     assert len(s) == 2
     assert 7 not in s
+
+
+def test_alias_part_probs_follow_its_share():
+    m = MixtureDistribution([
+        SubDistribution(Alias([1.0, 3.0]), p=0.5),
+        SubDistribution(Uniform(2), p=0.5),
+    ])
+
+    np.testing.assert_allclose(m.probs(np.arange(3)), [0.375, 0.625, 0.0])
+
+
+def test_samples_match_probs_with_alias_part(rng):
+    m = MixtureDistribution([
+        SubDistribution(Alias([1.0, 3.0]), p=0.5),
+        SubDistribution(Uniform(2), p=0.5),
+    ])
+
+    data = m.sample(rng, 20000)
+    empirical = np.bincount(data, minlength=2) / len(data)
+
+    assert np.allclose(empirical, m.probs(np.arange(2)), atol=0.02)
+
+
+def test_update_leaves_alias_part_unchanged():
+    a = Alias([1.0, 3.0])
+    p = Proportional(10)
+    p.update(np.array([5]), np.array([1.0]))
+    m = MixtureDistribution([
+        SubDistribution(a, p=0.5),
+        SubDistribution(p, p=0.5),
+    ])
+
+    m.update(np.array([0, 1]), np.array([2.0, 2.0]))
+
+    np.testing.assert_allclose(a.probs(np.array([0, 1])), [0.25, 0.75])
+
+
+def test_defunct_alias_part_is_excluded_from_probs():
+    m = MixtureDistribution([
+        SubDistribution(Alias([0.0, 0.0]), p=0.5),
+        SubDistribution(Uniform(3), p=0.5),
+    ])
+
+    assert m.is_defunct is False
+    np.testing.assert_allclose(m.probs(np.arange(3)), [1 / 3, 1 / 3, 1 / 3])
