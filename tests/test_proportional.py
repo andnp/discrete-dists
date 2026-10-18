@@ -148,6 +148,16 @@ def test_proportional_probs_respect_support():
     assert np.allclose(probs, np.array([0.0, 0.2, 0.2, 0.2, 0.0]))
 
 
+@pytest.mark.parametrize("element", [9, 15])
+def test_proportional_update_outside_support_raises_index_error(element):
+    p = Proportional((10, 15))
+
+    with pytest.raises(IndexError):
+        p.update(np.array([element]), np.ones(1))
+
+    assert p.tree.total() == 0
+
+
 def test_proportional_probs_are_zero_without_mass():
     p = Proportional((10, 15))
 

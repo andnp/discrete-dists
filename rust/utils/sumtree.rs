@@ -19,7 +19,9 @@ pub struct SumTree {
 
 pub(crate) fn to_py_err(e: TreeError) -> PyErr {
     match e {
-        TreeError::IndexOutOfBounds { .. } => PyIndexError::new_err(e.to_string()),
+        TreeError::IndexOutOfBounds { .. } | TreeError::OutOfSupport { .. } => {
+            PyIndexError::new_err(e.to_string())
+        }
         _ => PyValueError::new_err(e.to_string()),
     }
 }
@@ -183,6 +185,20 @@ impl SumTree {
             .map_err(|e| PyValueError::new_err(format!("failed to serialize SumTree: {e}")))?;
         Ok(PyBytes::new(py, &bytes))
     }
+}
+
+#[pyfunction]
+pub fn proportional_update(
+    lo: i64,
+    mut tree: PyRefMut<'_, SumTree>,
+    elements: PyReadonlyArray1<i64>,
+    values: PyReadonlyArray1<f64>,
+) -> PyResult<()> {
+    let elements = contiguous(&elements);
+    let values = contiguous(&values);
+    Proportional::from_tree(lo, &mut tree.tree)
+        .update(&elements, &values)
+        .map_err(to_py_err)
 }
 
 #[pyfunction]
