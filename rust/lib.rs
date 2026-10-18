@@ -1,6 +1,7 @@
 use pyo3::prelude::*;
 
 mod mixture;
+mod prioritized;
 mod rng;
 mod uniform;
 mod uniform_set;
@@ -11,6 +12,7 @@ mod window;
 #[pymodule(gil_used = false)]
 fn rust(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<rng::Rng>()?;
+    m.add_class::<prioritized::Prioritized>()?;
     m.add_class::<utils::sumtree::SumTree>()?;
     m.add_class::<uniform_set::UniformSet>()?;
     m.add_class::<window::WindowMixture>()?;

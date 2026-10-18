@@ -3,6 +3,7 @@ import pytest
 
 from discrete_dists import (
     MixtureDistribution,
+    Prioritized,
     Proportional,
     SubDistribution,
     Uniform,
@@ -11,8 +12,26 @@ from discrete_dists import (
     WindowMixture,
 )
 
+def filled_prioritized():
+    p = Prioritized(10, 1.0)
+    p.update(np.arange(10), np.ones(10))
+    return p
+
+
 # Each entry builds a fresh distribution and calls one method that takes element indices.
 ELEMENT_CALLS = {
+    "Prioritized.probs": (
+        lambda: Prioritized(10, 1.0),
+        lambda d, e: d.probs(e),
+    ),
+    "Prioritized.update": (
+        lambda: Prioritized(10, 1.0),
+        lambda d, e: d.update(e, np.ones(len(e))),
+    ),
+    "Prioritized.importance_weights": (
+        filled_prioritized,
+        lambda d, e: d.importance_weights(e, 1.0),
+    ),
     "Proportional.probs": (
         lambda: Proportional(10),
         lambda d, e: d.probs(e),
