@@ -1,4 +1,6 @@
 import pickle
+from concurrent.futures import ThreadPoolExecutor
+
 import numpy as np
 import pytest
 
@@ -72,6 +74,31 @@ class TestSumTree:
         assert np.all(
             tree.total() == tree2.total()
         )
+
+    def test_threads_with_separate_trees_stay_consistent(self):
+        # Each thread owns its tree, so concurrent use on free-threaded Python
+        # must not interfere between trees.
+        def worker(seed: int) -> tuple[float, float]:
+            rng = np.random.default_rng(seed)
+            n = 10_000
+            tree = SumTree(n)
+            expected = np.ones(n)
+            tree.update(np.arange(n), expected)
+
+            for _ in range(300):
+                idxs = rng.choice(n, size=50, replace=False)
+                values = rng.uniform(0, 1, size=50)
+                tree.update(idxs, values)
+                expected[idxs] = values
+                tree.sample(rng, 32)
+
+            return tree.total(), expected.sum()
+
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            results = list(pool.map(worker, range(8)))
+
+        for total, expected in results:
+            assert total == pytest.approx(expected, rel=1e-9)
 
     def test_rejects_negative_index(self):
         tree = SumTree(4)
