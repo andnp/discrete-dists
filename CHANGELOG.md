@@ -1,3 +1,11 @@
+## 1.2.4 (2026-10-18)
+
+### Refactor
+
+- **core**: move tree logic into a pyo3-free crate
+- **sumtree**: separate tree logic from pyo3 bindings
+- **sumtree**: drop a needless borrow in pickle encoding
+
 ## 1.2.3 (2026-10-18)
 
 ### Fix

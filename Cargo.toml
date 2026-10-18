@@ -2,7 +2,7 @@
 members = [".", "crates/discrete-dists-core"]
 
 [workspace.package]
-version = "1.2.3"
+version = "1.2.4"
 
 [package]
 name = "discrete-dists"
