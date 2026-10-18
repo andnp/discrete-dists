@@ -10,6 +10,7 @@ const MAX_WINDOWS: usize = 64;
 pub struct Window {
     pub min_age: f64,
     pub max_age: f64,
+    pub half_life: Option<f64>,
     pub p: f64,
 }
 
@@ -17,6 +18,7 @@ pub struct Window {
 pub struct WindowMixture {
     windows: Vec<Window>,
     trees: Vec<Tree>,
+    anchors: Vec<f64>,
     boundaries: Vec<f64>,
     stamps: Vec<f64>,
     weights: Vec<f64>,
@@ -85,6 +87,13 @@ fn validate_windows(windows: &[Window]) -> Result<(), TreeError> {
                 w.max_age, w.min_age
             )));
         }
+        if let Some(half_life) = w.half_life {
+            if !half_life.is_finite() || half_life <= 0.0 {
+                return Err(invalid(format!(
+                    "window {k} half_life {half_life} must be finite and positive"
+                )));
+            }
+        }
         if !w.p.is_finite() || w.p < 0.0 {
             return Err(invalid(format!(
                 "window {k} mass {} must be finite and non-negative",
@@ -131,6 +140,7 @@ impl WindowMixture {
         Ok(WindowMixture {
             trees: iter::repeat_with(|| Tree::new(size)).take(k).collect(),
             windows,
+            anchors: vec![f64::NAN; k],
             boundaries,
             stamps: vec![0.0; n],
             weights: vec![0.0; n],
@@ -189,7 +199,9 @@ impl WindowMixture {
             changed &= changed - 1;
 
             if mask & (1u64 << k) != 0 {
-                self.trees[k].update_single(e as i64, self.weights[e])?;
+                self.anchor(k, e)?;
+                let value = self.value_in(k, e);
+                self.trees[k].update_single(e as i64, value)?;
                 self.counts[k] += 1;
             } else {
                 self.trees[k].update_single(e as i64, 0.0)?;
@@ -199,6 +211,36 @@ impl WindowMixture {
         self.members[e] = mask;
 
         Ok(())
+    }
+
+    // Rebasing every 64 half-lives bounds stored values by weight * 2^64, so even huge weights stay finite.
+    fn anchor(&mut self, k: usize, e: usize) -> Result<(), TreeError> {
+        let Some(half_life) = self.windows[k].half_life else {
+            return Ok(());
+        };
+        let stamp = self.stamps[e];
+        if self.anchors[k].is_nan() {
+            self.anchors[k] = stamp;
+            return Ok(());
+        }
+
+        let lag = (stamp - self.anchors[k]) / half_life;
+        if lag > 64.0 {
+            self.trees[k].scale((-lag).exp2().max(f64::MIN_POSITIVE))?;
+            self.anchors[k] = stamp;
+        }
+
+        Ok(())
+    }
+
+    // Values are relative to the anchor, so the factor 0.5^((cursor - anchor) / half_life) shared by every element cancels in each probability; advancing never rewrites a decaying tree.
+    fn value_in(&self, k: usize, e: usize) -> f64 {
+        match self.windows[k].half_life {
+            None => self.weights[e],
+            Some(half_life) => {
+                self.weights[e] * ((self.stamps[e] - self.anchors[k]) / half_life).exp2()
+            }
+        }
     }
 
     // The generation lets stale entries be recognized on pop.
@@ -351,7 +393,15 @@ mod tests {
         Window {
             min_age,
             max_age,
+            half_life: None,
             p,
+        }
+    }
+
+    fn decaying(min_age: f64, max_age: f64, half_life: f64, p: f64) -> Window {
+        Window {
+            half_life: Some(half_life),
+            ..window(min_age, max_age, p)
         }
     }
 
@@ -616,6 +666,76 @@ mod tests {
         }
     }
 
+    #[test]
+    fn new_rejects_invalid_half_life() {
+        for half_life in [f64::NAN, f64::INFINITY, 0.0, -1.0] {
+            assert_invalid(WindowMixture::new(
+                4,
+                vec![decaying(0.0, f64::INFINITY, half_life, 1.0)],
+                0.0,
+            ));
+        }
+    }
+
+    #[test]
+    fn decayed_probs_follow_half_life_weights() {
+        let mut mixture =
+            WindowMixture::new(3, vec![decaying(0.0, f64::INFINITY, 2.0, 1.0)], 5.0).unwrap();
+        mixture
+            .insert(&[0, 1, 2], &[0.0, 1.0, 3.0], &[1.0, 2.0, 0.5])
+            .unwrap();
+
+        let expected = [
+            1.0 * 0.5f64.powf(5.0 / 2.0),
+            2.0 * 0.5f64.powf(4.0 / 2.0),
+            0.5 * 0.5f64.powf(2.0 / 2.0),
+        ];
+        let total: f64 = expected.iter().sum();
+        for (p, e) in probs_of(&mixture, 3).iter().zip(expected) {
+            assert!((p - e / total).abs() <= 1e-12 * (e / total));
+        }
+    }
+
+    #[test]
+    fn advance_without_crossing_leaves_decayed_probs_unchanged() {
+        let mut mixture =
+            WindowMixture::new(2, vec![decaying(0.0, f64::INFINITY, 3.0, 1.0)], 4.0).unwrap();
+        mixture.insert(&[0, 1], &[0.0, 2.0], &[1.0, 3.0]).unwrap();
+        let before = probs_of(&mixture, 2);
+
+        mixture.advance(7.3).unwrap();
+
+        for (p, q) in probs_of(&mixture, 2).iter().zip(before) {
+            assert!((p - q).abs() <= 1e-12);
+        }
+    }
+
+    #[test]
+    fn decay_rebases_when_stamps_span_more_than_1022_half_lives() {
+        let mut mixture =
+            WindowMixture::new(2, vec![decaying(0.0, f64::INFINITY, 1.0, 1.0)], 1100.0).unwrap();
+        mixture.insert(&[0], &[0.0], &[1.0]).unwrap();
+        mixture.insert(&[1], &[1100.0], &[1.0]).unwrap();
+
+        let probs = probs_of(&mixture, 2);
+        assert!(probs.iter().all(|p| p.is_finite()));
+        assert!(probs[0].abs() <= 1e-12);
+        assert!((probs[1] - 1.0).abs() <= 1e-12);
+    }
+
+    #[test]
+    fn decay_keeps_huge_weights_finite() {
+        let mut mixture =
+            WindowMixture::new(2, vec![decaying(0.0, f64::INFINITY, 1.0, 1.0)], 400.0).unwrap();
+        mixture
+            .insert(&[0, 1], &[0.0, 400.0], &[1e200, 1e200])
+            .unwrap();
+
+        let probs = probs_of(&mixture, 2);
+        assert!((probs[0] / 2f64.powi(-400) - 1.0).abs() <= 1e-12);
+        assert!((probs[1] - 1.0).abs() <= 1e-12);
+    }
+
     #[derive(Clone, Debug)]
     enum Op {
         Insert(i64, f64, f64),
@@ -631,9 +751,15 @@ mod tests {
         (
             quarters(-8, 32),
             prop_oneof![3 => quarters(1, 32), 1 => Just(f64::INFINITY)],
+            prop_oneof![1 => Just(None), 2 => quarters(1, 16).prop_map(Some)],
             quarters(0, 4),
         )
-            .prop_map(|(min_age, width, p)| window(min_age, min_age + width, p))
+            .prop_map(|(min_age, width, half_life, p)| Window {
+                min_age,
+                max_age: min_age + width,
+                half_life,
+                p,
+            })
     }
 
     fn case() -> impl Strategy<Value = (u32, Vec<Window>, Vec<Op>)> {
@@ -663,6 +789,14 @@ mod tests {
             self.windows[k].min_age <= age && age < self.windows[k].max_age
         }
 
+        // Decayed weight of an element in window k, computed independently of the forward-decay storage.
+        fn value(&self, k: usize, stamp: f64, w: f64) -> f64 {
+            match self.windows[k].half_life {
+                None => w,
+                Some(half_life) => w * 0.5f64.powf((self.cursor - stamp) / half_life),
+            }
+        }
+
         fn members(&self, k: usize) -> impl Iterator<Item = (f64, f64)> + '_ {
             self.live
                 .iter()
@@ -680,7 +814,11 @@ mod tests {
         fn probs(&self) -> Vec<f64> {
             let k_total = self.windows.len();
             let mass: Vec<f64> = (0..k_total)
-                .map(|k| self.members(k).map(|(_, w)| w).sum())
+                .map(|k| {
+                    self.members(k)
+                        .map(|(stamp, w)| self.value(k, stamp, w))
+                        .sum()
+                })
                 .collect();
             let live_p: f64 = (0..k_total)
                 .filter(|&k| mass[k] > 0.0)
@@ -692,7 +830,7 @@ mod tests {
                 .map(|slot| match *slot {
                     Some((stamp, w)) if live_p > 0.0 => (0..k_total)
                         .filter(|&k| mass[k] > 0.0 && self.in_window(k, stamp))
-                        .map(|k| self.windows[k].p / live_p * w / mass[k])
+                        .map(|k| self.windows[k].p / live_p * self.value(k, stamp, w) / mass[k])
                         .sum(),
                     _ => 0.0,
                 })
