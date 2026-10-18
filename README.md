@@ -1,5 +1,7 @@
 # discrete dists
 
+[![CodSpeed](https://img.shields.io/endpoint?url=https://codspeed.io/badge.json)](https://app.codspeed.io/andnp/discrete-dists?utm_source=badge)
+
 Simple utilities for defining complex distributions over discrete elements.
 Backed by a fast sum-tree implementation written in Rust.
 

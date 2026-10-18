@@ -55,3 +55,11 @@ def test_feed_loop(p: Proportional, rng: np.random.Generator, benchmark):
     vals = rng.uniform(0.1, 2.0, BATCH)
 
     benchmark(_feed_one_at_a_time, p, idxs, vals)
+
+
+def test_stratified_sample_batch(p: Proportional, rng: np.random.Generator, benchmark):
+    benchmark(p.stratified_sample, rng, BATCH)
+
+
+def test_sample_without_replacement(p: Proportional, rng: np.random.Generator, benchmark):
+    benchmark(p.sample_without_replacement, rng, BATCH)
