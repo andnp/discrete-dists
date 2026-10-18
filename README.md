@@ -23,14 +23,14 @@ The formal API behavior is documented in [`SEMANTICS.md`](./SEMANTICS.md).
 
 ## API
 ### Uniform Distribution
-A very simple wrapper over `np.random.default_rng().integers`, conforming to the `Distribution` API defined in this library.
+A Rust-backed uniform distribution, conforming to the `Distribution` API defined in this library.
 This wrapper additionally introduces importance sampling ratio calculations, sampling without replacement, and stratified sampling.
 
 ```python
-import numpy as np
+from discrete_dists import Rng
 from discrete_dists.uniform import Uniform
 
-rng = np.random.default_rng(0)
+rng = Rng(0)
 
 u = Uniform(100)
 

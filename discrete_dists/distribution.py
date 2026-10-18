@@ -2,6 +2,7 @@ from __future__ import annotations
 from abc import abstractmethod
 import numpy as np
 import logging
+from discrete_dists.rust import Rng
 
 logger = logging.getLogger('discrete_dists')
 
@@ -14,10 +15,10 @@ class Distribution:
     def probs(self, elements: np.ndarray) -> np.ndarray: ...
 
     @abstractmethod
-    def sample(self, rng: np.random.Generator, n: int) -> np.ndarray: ...
+    def sample(self, rng: Rng, n: int) -> np.ndarray: ...
 
     @abstractmethod
-    def stratified_sample(self, rng: np.random.Generator, n: int) -> np.ndarray: ...
+    def stratified_sample(self, rng: Rng, n: int) -> np.ndarray: ...
 
     def isr(self, target: Distribution, elements: np.ndarray):
         """
@@ -43,9 +44,8 @@ class Distribution:
 
     def sample_without_replacement(
         self,
-        rng: np.random.Generator,
+        rng: Rng,
         n: int,
-        attempts: int = 25,
     ) -> np.ndarray:
         if n < 0:
             raise ValueError(f"n must be nonnegative, got {n}")
@@ -53,6 +53,7 @@ class Distribution:
         if n == 0:
             return np.array([], dtype=np.int64)
 
+        attempts = 25
         elements = self.sample(rng, n)
 
         # fastpath for the common case that the first sample is already unique

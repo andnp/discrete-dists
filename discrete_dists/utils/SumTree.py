@@ -22,23 +22,6 @@ class SumTree(ru.SumTree):
 
         super().update(a_idxs, a_values)
 
-    def sample(self, rng: np.random.Generator, n: int) -> np.ndarray:
-        t = self.total()
-        if t <= 0:
-            raise ValueError("Cannot sample when the tree is empty or contains invalid values")
-
-        rs = rng.uniform(0, t, size=n)
-        return self.query(rs)
-
-    def stratified_sample(self, rng: np.random.Generator, n: int) -> np.ndarray:
-        t = self.total()
-        if t <= 0:
-            raise ValueError("Cannot sample when the tree is empty or contains invalid values")
-
-        values = (np.arange(n, dtype=np.float64) + rng.random(n)) / n
-
-        return self.query(t * values)
-
     def __getstate__(self):
         return {
             'st': super().__getstate__()

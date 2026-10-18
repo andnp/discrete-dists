@@ -4,6 +4,7 @@ from typing import Sequence
 import numpy as np
 
 from discrete_dists.distribution import Distribution
+from discrete_dists.rust import Rng
 from discrete_dists.proportional import Proportional
 from discrete_dists.uniform import Uniform
 
@@ -15,6 +16,12 @@ class SubDistribution:
     """
     d: Distribution
     p: float
+
+
+def _draw_parts(rng: Rng, idxs: np.ndarray, weights: np.ndarray, n: int) -> np.ndarray:
+    cdf = np.cumsum(weights)
+    slots = np.searchsorted(cdf, rng.random(n), side="right")
+    return idxs[np.minimum(slots, len(idxs) - 1)]
 
 
 class MixtureDistribution(Distribution):
@@ -49,7 +56,7 @@ class MixtureDistribution(Distribution):
         p = weights.dot(sub)
         return p
 
-    def sample(self, rng: np.random.Generator, n: int):
+    def sample(self, rng: Rng, n: int):
         """
         Sample `n` values from the mixture distribution,
         partitioning these `n` values over the various
@@ -64,7 +71,7 @@ class MixtureDistribution(Distribution):
                 return out
             raise ValueError("cannot sample from an all-defunct mixture distribution")
 
-        subs = rng.choice(idxs, size=n, replace=True, p=weights)
+        subs = _draw_parts(rng, idxs, weights, n)
         elements, counts = np.unique(subs, return_counts=True)
 
         total = 0
@@ -74,10 +81,9 @@ class MixtureDistribution(Distribution):
             out[total:next_t] = d.sample(rng, count)
             total = next_t
 
-        rng.shuffle(out)
-        return out
+        return out[np.argsort(rng.random(n))]
 
-    def stratified_sample(self, rng: np.random.Generator, n: int):
+    def stratified_sample(self, rng: Rng, n: int):
         """
         Sample `n` values from the mixture distribution,
         partitioning these `n` values over the various
@@ -95,7 +101,7 @@ class MixtureDistribution(Distribution):
                 return out
             raise ValueError("cannot sample from an all-defunct mixture distribution")
 
-        subs = rng.choice(idxs, size=n, replace=True, p=weights)
+        subs = _draw_parts(rng, idxs, weights, n)
         elements, counts = np.unique(subs, return_counts=True)
 
         total = 0
@@ -105,8 +111,7 @@ class MixtureDistribution(Distribution):
             out[total:next_t] = d.stratified_sample(rng, count)
             total = next_t
 
-        rng.shuffle(out)
-        return out
+        return out[np.argsort(rng.random(n))]
 
 
     @property

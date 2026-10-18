@@ -1,5 +1,6 @@
+use crate::rng::Rng;
 use bincode::serde::{decode_from_slice, encode_to_vec};
-use discrete_dists_core::{Tree, TreeError};
+use discrete_dists_core::{Distribution, Proportional, Tree, TreeError};
 use numpy::{Element, PyArray1, PyReadonlyArray1, ToPyArray};
 use pyo3::exceptions::{PyIndexError, PyValueError};
 use pyo3::{
@@ -16,7 +17,7 @@ pub struct SumTree {
     tree: Tree,
 }
 
-fn to_py_err(e: TreeError) -> PyErr {
+pub(crate) fn to_py_err(e: TreeError) -> PyErr {
     match e {
         TreeError::IndexOutOfBounds { .. } => PyIndexError::new_err(e.to_string()),
         _ => PyValueError::new_err(e.to_string()),
@@ -95,6 +96,57 @@ impl SumTree {
             .map_err(to_py_err)?;
 
         Ok(values.to_pyarray(py))
+    }
+
+    #[pyo3(signature = (rng, n, offset = 0))]
+    pub fn sample<'py>(
+        &self,
+        mut rng: PyRefMut<'_, Rng>,
+        n: usize,
+        offset: i64,
+        py: Python<'py>,
+    ) -> PyResult<Bound<'py, PyArray1<i64>>> {
+        let core = &mut rng.rng;
+        let mut out = vec![0i64; n];
+        py.detach(|| Proportional::from_tree(offset, &self.tree).sample(core, &mut out))
+            .map_err(to_py_err)?;
+
+        Ok(out.to_pyarray(py))
+    }
+
+    #[pyo3(signature = (rng, n, offset = 0))]
+    pub fn stratified_sample<'py>(
+        &self,
+        mut rng: PyRefMut<'_, Rng>,
+        n: usize,
+        offset: i64,
+        py: Python<'py>,
+    ) -> PyResult<Bound<'py, PyArray1<i64>>> {
+        let core = &mut rng.rng;
+        let mut out = vec![0i64; n];
+        py.detach(|| Proportional::from_tree(offset, &self.tree).stratified_sample(core, &mut out))
+            .map_err(to_py_err)?;
+
+        Ok(out.to_pyarray(py))
+    }
+
+    #[pyo3(signature = (rng, n, offset = 0))]
+    pub fn sample_without_replacement<'py>(
+        &mut self,
+        mut rng: PyRefMut<'_, Rng>,
+        n: usize,
+        offset: i64,
+        py: Python<'py>,
+    ) -> PyResult<Bound<'py, PyArray1<i64>>> {
+        let core = &mut rng.rng;
+        let mut out = Vec::with_capacity(n);
+        py.detach(|| {
+            Proportional::from_tree(offset, &mut self.tree)
+                .sample_without_replacement(core, n, &mut out)
+        })
+        .map_err(to_py_err)?;
+
+        Ok(out.to_pyarray(py))
     }
 
     pub fn total(&self) -> f64 {

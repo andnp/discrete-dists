@@ -1,7 +1,12 @@
 import numpy as np
 import numpy.typing as npt
-import discrete_dists.utils.npu as npu
 from discrete_dists.distribution import Distribution, Support
+from discrete_dists.rust import (
+    Rng,
+    uniform_sample,
+    uniform_sample_without_replacement,
+    uniform_stratified_sample,
+)
 
 
 class Uniform(Distribution):
@@ -56,43 +61,27 @@ class Uniform(Distribution):
     # --------------
     # -- Samplers --
     # --------------
-    def sample(self, rng: np.random.Generator, n: int):
+    def sample(self, rng: Rng, n: int):
         """
         Sample `n` values from the support of the distribution
         with replacement.
         """
-        size = self._support[1] - self._support[0]
-        if size < 2:
-            return self._support[0] + np.zeros(n, dtype=np.int64)
-
-        return rng.integers(*self._support, size=n)
+        return uniform_sample(rng, self._support[0], self._support[1], n)
 
 
-    def stratified_sample(self, rng: np.random.Generator, n: int):
+    def stratified_sample(self, rng: Rng, n: int):
         """
         Sample `n` evenly spaced values from the support
         of the distribution with replacement.
         """
-        return npu.stratified_sample_integers(rng, n, *self._support)
+        return uniform_stratified_sample(rng, self._support[0], self._support[1], n)
 
 
-    def sample_without_replacement(
-        self,
-        rng: np.random.Generator,
-        n: int,
-        attempts: int = 25,
-    ) -> np.ndarray:
-        if n < 0:
-            raise ValueError(f"n must be nonnegative, got {n}")
-
-        size = self._support[1] - self._support[0]
-        if n > size:
-            raise ValueError(
-                f"cannot sample {n} unique elements from support of size {size}"
-            )
-
-        support = np.arange(self._support[0], self._support[1], dtype=np.int64)
-        return rng.choice(support, size=n, replace=False)
+    def sample_without_replacement(self, rng: Rng, n: int) -> np.ndarray:
+        """
+        Sample exactly `n` distinct values from the support.
+        """
+        return uniform_sample_without_replacement(rng, self._support[0], self._support[1], n)
 
 
     def probs(self, elements: npt.ArrayLike):

@@ -1,5 +1,6 @@
 import pytest
 import numpy as np
+from discrete_dists import Rng
 from discrete_dists.mixture import MixtureDistribution, SubDistribution
 from discrete_dists.proportional import Proportional
 from discrete_dists.uniform import Uniform
@@ -7,7 +8,7 @@ from discrete_dists.uniform import Uniform
 
 @pytest.fixture
 def rng():
-    return np.random.default_rng(0)
+    return Rng(0)
 
 
 def test_mixture1(rng):
@@ -163,7 +164,7 @@ def test_sample_without_replacement_is_unbiased_by_value():
         SubDistribution(Uniform(1000), p=0.5),
         SubDistribution(Uniform(1000), p=0.5),
     ])
-    rng = np.random.default_rng(0)
+    rng = Rng(0)
 
     draws = [m.sample_without_replacement(rng, 500) for _ in range(200)]
 

@@ -4,6 +4,7 @@ from concurrent.futures import ThreadPoolExecutor
 import numpy as np
 import pytest
 
+from discrete_dists import Rng
 from discrete_dists.utils.SumTree import SumTree
 
 class TestSumTree:
@@ -33,8 +34,7 @@ class TestSumTree:
 
         assert tree.total() == 50
 
-        rng = np.random.default_rng(0)
-        samples = tree.sample(rng, 10000)
+        samples = tree.sample(Rng(0), 10000)
 
         u, c = np.unique(samples, return_counts=True)
         assert np.all(u == np.arange(50))
@@ -48,8 +48,7 @@ class TestSumTree:
 
         # NOTE: it takes a shockingly high number of samples for the proportions
         # to converge even within a single decimal point..
-        rng = np.random.default_rng(22)
-        samples = tree.sample(rng, 10000000)
+        samples = tree.sample(Rng(22), 10000000)
 
         u, c = np.unique(samples, return_counts=True)
         assert np.all(u == np.arange(10))
@@ -80,6 +79,7 @@ class TestSumTree:
         # must not interfere between trees.
         def worker(seed: int) -> tuple[float, float]:
             rng = np.random.default_rng(seed)
+            sampler = Rng(seed)
             n = 10_000
             tree = SumTree(n)
             expected = np.ones(n)
@@ -90,7 +90,7 @@ class TestSumTree:
                 values = rng.uniform(0, 1, size=50)
                 tree.update(idxs, values)
                 expected[idxs] = values
-                tree.sample(rng, 32)
+                tree.sample(sampler, 32)
 
             return tree.total(), expected.sum()
 
@@ -144,14 +144,14 @@ class TestSumTree:
 
     def test_zero_sized_tree_rejects_sampling(self):
         tree = SumTree(0)
-        rng = np.random.default_rng(0)
+        rng = Rng(0)
 
         assert tree.total() == 0
 
-        with pytest.raises(ValueError, match="Cannot sample"):
+        with pytest.raises(ValueError, match="no mass"):
             tree.sample(rng, 1)
 
-        with pytest.raises(ValueError, match="Cannot sample"):
+        with pytest.raises(ValueError, match="no mass"):
             tree.stratified_sample(rng, 1)
 
     def test_updates_do_not_accumulate_drift(self):
@@ -170,7 +170,7 @@ class TestSumTree:
         assert tree.get_value(0) == 1e-9
         assert tree.total() == 1e-9
 
-        samples = tree.sample(np.random.default_rng(0), 100)
+        samples = tree.sample(Rng(0), 100)
         assert np.all(samples == 0)
 
     def test_query_at_zero_skips_zero_weight_leaf(self):

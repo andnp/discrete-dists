@@ -1,11 +1,12 @@
 import pytest
 import numpy as np
+from discrete_dists import Rng
 from discrete_dists.uniform import Uniform
 
 
 @pytest.fixture
 def rng():
-    return np.random.default_rng(0)
+    return Rng(0)
 
 
 def test_uniform1(rng):
@@ -57,7 +58,7 @@ def test_uniform_sample_wo_replace(rng):
 def test_uniform_sample_wo_replace_too_many(rng):
     u = Uniform(3)
 
-    with pytest.raises(ValueError, match="support of size 3"):
+    with pytest.raises(ValueError, match="cannot sample 4 unique elements"):
         u.sample_without_replacement(rng, 4)
 
 
@@ -83,7 +84,7 @@ def test_stratified_sample_wider_than_support(rng):
 
 
 def test_stratified_sample_rejects_empty_support(rng):
-    with pytest.raises(ValueError, match="empty support"):
+    with pytest.raises(ValueError, match="no mass"):
         Uniform(0).stratified_sample(rng, 3)
 
 
@@ -106,6 +107,13 @@ def test_uniform_probs_respect_support():
     probs = u.probs(np.array([9, 10, 12, 14, 15]))
 
     assert np.allclose(probs, np.array([0.0, 0.2, 0.2, 0.2, 0.0]))
+
+
+def test_zero_samples_from_empty_support_is_empty():
+    u = Uniform(0)
+
+    assert len(u.sample(Rng(0), 0)) == 0
+    assert len(u.stratified_sample(Rng(0), 0)) == 0
 
 
 def test_uniform_probs_defunct():
@@ -149,3 +157,13 @@ def test_uniform_probs_sum_to_one_over_support():
     u = Uniform((10, 15))
 
     assert u.probs(np.arange(10, 15)).sum() == pytest.approx(1.0)
+
+
+def test_sample_rejects_empty_support(rng):
+    """
+    A zero-width support has no elements to draw, so sampling must raise rather
+    than return placeholder values.
+    """
+    with pytest.raises(ValueError, match="no mass"):
+        Uniform(0).sample(rng, 3)
+

@@ -1,5 +1,6 @@
 import numpy as np
 from discrete_dists.distribution import Distribution, Support
+from discrete_dists.rust import Rng
 from discrete_dists.utils.SumTree import SumTree
 
 class Proportional(Distribution):
@@ -64,47 +65,25 @@ class Proportional(Distribution):
     # --------------
     # -- Sampling --
     # --------------
-    def sample(self, rng: np.random.Generator, n: int) -> np.ndarray:
+    def sample(self, rng: Rng, n: int) -> np.ndarray:
         """
         Sample `n` values from the distribution. Return
         will be a np.array of integers.
         """
-        return self.tree.sample(rng, n) + self._support[0]
+        return self.tree.sample(rng, n, offset=self._support[0])
 
-    def stratified_sample(self, rng: np.random.Generator, n: int) -> np.ndarray:
+    def stratified_sample(self, rng: Rng, n: int) -> np.ndarray:
         """
         Sample `n` evenly spaced values from the distribution.
         Return will be a np.array of integers.
         """
-        return self.tree.stratified_sample(rng, n) + self._support[0]
+        return self.tree.stratified_sample(rng, n, offset=self._support[0])
 
-    def sample_without_replacement(
-        self,
-        rng: np.random.Generator,
-        n: int,
-        attempts: int = 25,
-    ) -> np.ndarray:
-        if n < 0:
-            raise ValueError(f"n must be nonnegative, got {n}")
-
-        width = self._support[1] - self._support[0]
-        if width == 0:
-            if n == 0:
-                return np.array([], dtype=np.int64)
-            raise ValueError("cannot sample from an empty proportional distribution")
-
-        offsets = np.arange(width, dtype=np.int64)
-        values = self.tree.get_values(offsets)
-        active = values > 0
-
-        if n > active.sum():
-            raise ValueError(
-                f"cannot sample {n} unique elements from {active.sum()} positive-mass elements"
-            )
-
-        support = offsets[active] + self._support[0]
-        probs = values[active] / values[active].sum()
-        return rng.choice(support, size=n, replace=False, p=probs)
+    def sample_without_replacement(self, rng: Rng, n: int) -> np.ndarray:
+        """
+        Sample exactly `n` distinct values from the positive-mass elements.
+        """
+        return self.tree.sample_without_replacement(rng, n, offset=self._support[0])
 
     # --------------
     # -- Updating --
