@@ -207,3 +207,157 @@ impl Tree {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use proptest::collection::vec;
+    use proptest::prelude::*;
+
+    #[derive(Debug, Clone)]
+    enum Op {
+        Single(i64, f64),
+        Batch(Vec<(i64, f64)>),
+    }
+
+    fn weight() -> impl Strategy<Value = f64> {
+        prop_oneof![
+            2 => Just(0.0),
+            1 => Just(1e-9),
+            3 => 0.0..=1e6f64,
+        ]
+    }
+
+    fn pair(size: u32) -> impl Strategy<Value = (i64, f64)> {
+        (0..size as i64, weight())
+    }
+
+    fn ops() -> impl Strategy<Value = (u32, Vec<Op>)> {
+        (1u32..=2048).prop_flat_map(|size| {
+            let op = prop_oneof![
+                pair(size).prop_map(|(idx, w)| Op::Single(idx, w)),
+                vec(pair(size), 1..=16).prop_map(Op::Batch),
+            ];
+            (Just(size), vec(op, 0..=200))
+        })
+    }
+
+    fn apply(tree: &mut Tree, op: &Op) {
+        match op {
+            Op::Single(idx, w) => tree.update_single(*idx, *w).unwrap(),
+            Op::Batch(pairs) => {
+                let (idxs, values): (Vec<i64>, Vec<f64>) = pairs.iter().copied().unzip();
+                tree.update(&idxs, &values).unwrap();
+            }
+        }
+    }
+
+    fn build(size: u32, ops: &[Op]) -> (Tree, Vec<f64>) {
+        let mut tree = Tree::new(size);
+        let mut leaves = vec![0.0; tree.total_size as usize];
+        for op in ops {
+            apply(&mut tree, op);
+            match op {
+                Op::Single(idx, w) => leaves[*idx as usize] = *w,
+                Op::Batch(pairs) => {
+                    for (idx, w) in pairs {
+                        leaves[*idx as usize] = *w;
+                    }
+                }
+            }
+        }
+        (tree, leaves)
+    }
+
+    fn leaf_sum(tree: &Tree) -> f64 {
+        tree.raw[0].iter().sum()
+    }
+
+    proptest! {
+        #[test]
+        fn internal_nodes_are_exact_child_sums_and_leaves_hold_last_write(
+            (size, ops) in ops(),
+        ) {
+            let (tree, leaves) = build(size, &ops);
+
+            for k in 1..tree.raw.len() {
+                for i in 0..tree.raw[k].len() {
+                    prop_assert_eq!(
+                        tree.raw[k][i],
+                        tree.raw[k - 1][2 * i] + tree.raw[k - 1][2 * i + 1]
+                    );
+                }
+            }
+
+            prop_assert_eq!(tree.raw[0].to_vec(), leaves);
+        }
+
+        #[test]
+        fn total_matches_sum_of_leaves(
+            (size, ops) in ops(),
+        ) {
+            let (tree, _) = build(size, &ops);
+            let total = tree.total();
+
+            prop_assert_eq!(total, *tree.raw.last().unwrap().first().unwrap());
+            let sum = leaf_sum(&tree);
+            let diff = (total - sum).abs();
+            prop_assert!(diff <= 1e-12 || diff <= 1e-9 * sum.abs());
+        }
+
+        #[test]
+        fn query_returns_in_range_positive_leaves(
+            (size, ops) in ops(),
+            fractions in vec(0.0..1.0f64, 0..=64),
+        ) {
+            let (tree, _) = build(size, &ops);
+            let total = tree.total();
+            prop_assume!(total > 0.0);
+
+            let mut values: Vec<f64> = fractions.iter().map(|f| f * total).collect();
+            values.push(0.0);
+            values.push(total);
+            let mut out = vec![0i64; values.len()];
+            tree.query(&values, &mut out);
+
+            for idx in out {
+                prop_assert!((0..size as i64).contains(&idx));
+                prop_assert!(tree.get_value(idx).unwrap() > 0.0);
+            }
+        }
+
+        #[test]
+        fn update_is_atomic_on_invalid_pair(
+            (size, ops) in ops(),
+            batch in vec((0..2048i64, weight()), 0..=16),
+            position in any::<prop::sample::Index>(),
+            defect in 0..4u8,
+        ) {
+            let (mut tree, _) = build(size, &ops);
+            let before = tree.raw[0].to_vec();
+
+            let mut pairs: Vec<(i64, f64)> = batch
+                .into_iter()
+                .map(|(idx, w)| (idx % size as i64, w))
+                .collect();
+            let (bad_idx, bad_w) = match defect {
+                0 => (size as i64 + 1, 1.0),
+                1 => (-1, 1.0),
+                2 => (0, f64::NAN),
+                _ => (0, -1e-9),
+            };
+            pairs.insert(position.index(pairs.len() + 1), (bad_idx, bad_w));
+
+            let (idxs, values): (Vec<i64>, Vec<f64>) = pairs.into_iter().unzip();
+            let err = tree.update(&idxs, &values).unwrap_err();
+
+            let kind_ok = match defect {
+                0 | 1 => matches!(err, TreeError::IndexOutOfBounds { .. }),
+                2 => matches!(err, TreeError::NonFiniteWeight { .. }),
+                _ => matches!(err, TreeError::NegativeWeight { .. }),
+            };
+            prop_assert!(kind_ok, "unexpected error {err:?} for defect {defect}");
+            prop_assert_eq!(tree.raw[0].to_vec(), before);
+        }
+    }
+}
