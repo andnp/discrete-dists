@@ -14,7 +14,7 @@ use std::borrow::Cow;
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(transparent)]
 pub struct SumTree {
-    tree: Tree,
+    pub(crate) tree: Tree,
 }
 
 pub(crate) fn to_py_err(e: TreeError) -> PyErr {

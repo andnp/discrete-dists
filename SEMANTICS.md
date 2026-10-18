@@ -17,6 +17,7 @@ This document defines the intended behavior of the public distribution API.
 
 ## `sample(rng, n)` and `stratified_sample(rng, n)`
 
+- `rng` is a `discrete_dists.Rng`.
 - Return `n` samples from the current distribution.
 - Sampling from zero-mass / all-defunct distributions raises `ValueError`.
 - Returned values are always inside the live support.
@@ -25,7 +26,8 @@ This document defines the intended behavior of the public distribution API.
 
 - Returns exactly `n` unique samples or raises `ValueError`.
 - It never silently truncates the result.
-- Concrete distributions may provide exact implementations when available.
+- `Uniform` and `Proportional` are exact: they return exactly `n` distinct elements, drawn from the support or the positive-mass elements respectively.
+- `MixtureDistribution` draws by rejection under a fixed draw budget and raises `ValueError` if the budget runs out before `n` distinct elements are found.
 
 ## `is_defunct`
 
@@ -46,3 +48,4 @@ This document defines the intended behavior of the public distribution API.
 - Mixture probabilities are computed from the active (non-defunct) children only.
 - Defunct children are filtered out and the remaining weights are renormalized.
 - A mixture with all-defunct children returns zero probabilities and raises on sampling.
+- Sub-distributions must be `Uniform` or `Proportional` (including `Categorical`); any other type raises `TypeError` at construction.

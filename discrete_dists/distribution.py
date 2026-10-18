@@ -42,40 +42,8 @@ class Distribution:
         ratios[~supported & (target_probs > 0)] = np.inf
         return ratios
 
-    def sample_without_replacement(
-        self,
-        rng: Rng,
-        n: int,
-    ) -> np.ndarray:
-        if n < 0:
-            raise ValueError(f"n must be nonnegative, got {n}")
-
-        if n == 0:
-            return np.array([], dtype=np.int64)
-
-        attempts = 25
-        elements = self.sample(rng, n)
-
-        # fastpath for the common case that the first sample is already unique
-        uniq = dict.fromkeys(elements.tolist())
-        if len(uniq) == n:
-            return elements
-
-        for _ in range(attempts):
-            needed = n - len(uniq)
-            sub = self.sample(rng, 2 * needed)
-            uniq.update(dict.fromkeys(sub.tolist()))
-
-            if len(uniq) >= n:
-                break
-
-        if len(uniq) < n:
-            raise ValueError(
-                f"could not sample {n} unique elements after {attempts + 1} attempts; "
-                f"only found {len(uniq)}"
-            )
-
-        return np.fromiter(uniq, dtype=np.int64, count=len(uniq))[:n]
+    @abstractmethod
+    def sample_without_replacement(self, rng: Rng, n: int) -> np.ndarray: ...
 
 
     @property
