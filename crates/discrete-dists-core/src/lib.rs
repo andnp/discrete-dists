@@ -7,10 +7,12 @@ use std::iter;
 mod dist;
 pub mod mixture;
 mod rng;
+mod uniform_set;
 mod window;
 
 pub use dist::{Distribution, Proportional, Uniform};
 pub use rng::Rng;
+pub use uniform_set::UniformSet;
 pub use window::{Window, WindowMixture};
 
 // Renormalize when the multiplier leaves this range, so stored weights stay far from overflow and underflow.
