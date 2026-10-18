@@ -171,8 +171,11 @@ jobs:
       id-token: write
     steps:
       - uses: actions/download-artifact@v8
-      - name: Publish to PyPI
-        uses: PyO3/maturin-action@v1
         with:
-          command: upload
-          args: --non-interactive --skip-existing wheels-*/*
+          pattern: wheels-*
+          merge-multiple: true
+          path: dist
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@v1.14.2
+        with:
+          skip-existing: true
