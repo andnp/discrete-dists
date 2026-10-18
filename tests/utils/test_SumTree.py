@@ -145,3 +145,43 @@ class TestSumTree:
 
         samples = tree.sample(np.random.default_rng(0), 100)
         assert np.all(samples == 0)
+
+    def test_query_at_zero_skips_zero_weight_leaf(self):
+        """
+        A query of exactly 0.0 must land on the positive-weight leaf, never on a
+        zero-weight leaf to its left.
+        """
+        tree = SumTree(2)
+        tree.update([0, 1], [0.0, 1.0])
+
+        assert tree.query(np.array([0.0])).tolist() == [1]
+
+    def test_query_on_dense_grid_never_returns_zero_weight_leaf(self):
+        """
+        Boundaries between positive-weight leaves must not step into the
+        zero-weight leaf between them, and results must stay in range.
+        """
+        tree = SumTree(3)
+        tree.update([0, 1, 2], [1.0, 0.0, 1.0])
+
+        result = tree.query(np.linspace(0, 2, 10001))
+
+        assert not np.any(result == 1)
+        assert np.all((result >= 0) & (result < 3))
+
+    def test_query_only_returns_positive_weight_leaves_when_sparse(self):
+        """
+        With most weights zero, every sampled or boundary query must resolve to
+        a leaf with positive weight.
+        """
+        rng = np.random.default_rng(3)
+        weights = rng.uniform(0.1, 1.0, size=1000)
+        weights[rng.random(1000) < 0.9] = 0.0
+        tree = SumTree(1000)
+        tree.update(np.arange(1000), weights)
+
+        total = tree.total()
+        values = np.concatenate(([0.0, total], rng.uniform(0, total, size=100_000)))
+        result = tree.query(values)
+
+        assert np.all(tree.get_values(result) > 0)
