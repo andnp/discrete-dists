@@ -252,7 +252,7 @@ impl SumTree {
         Ok(())
     }
     pub fn __getstate__<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
-        let bytes = encode_to_vec(&self, bincode::config::standard())
+        let bytes = encode_to_vec(self, bincode::config::standard())
             .map_err(|e| PyValueError::new_err(format!("failed to serialize SumTree: {e}")))?;
         Ok(PyBytes::new(py, &bytes))
     }
