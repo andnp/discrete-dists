@@ -125,6 +125,12 @@ class Proportional(Distribution):
         element = element - self._support[0]
         self.tree.update_single(element, value)
 
+    def scale(self, factor: float) -> None:
+        """
+        Multiply every weight by `factor` in O(1); sampling probabilities are unchanged until new weights are written.
+        """
+        self.tree.scale(factor)
+
     def update_support(self, support: Support | int):
         """
         Shift the entire distribution to be over a new support.

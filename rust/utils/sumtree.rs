@@ -75,6 +75,10 @@ impl SumTree {
         self.tree.update_single(idx, value).map_err(to_py_err)
     }
 
+    pub fn scale(&mut self, factor: f64) -> PyResult<()> {
+        self.tree.scale(factor).map_err(to_py_err)
+    }
+
     pub fn get_value(&self, idx: i64) -> PyResult<f64> {
         self.tree.get_value(idx).map_err(to_py_err)
     }

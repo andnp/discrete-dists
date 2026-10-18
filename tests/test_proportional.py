@@ -188,6 +188,66 @@ def test_proportional_update_support_rejects_ambiguous_widen():
         p.update_support((12, 18))
 
 
+def test_proportional_scale_then_update_mixes_scaled_and_new_weights():
+    """
+    A weight written after a scale is stored at its raw value, so the scaled
+    old weights keep their relative mass against it.
+    """
+    p = Proportional(3)
+    p.update(np.array([0, 1]), np.array([1.0, 1.0]))
+
+    p.scale(0.5)
+    p.update(np.array([2]), np.array([1.0]))
+
+    assert np.allclose(p.probs(np.arange(3)), [0.25, 0.25, 0.5])
+
+
+def test_proportional_scale_alone_leaves_probs_unchanged():
+    """
+    Multiplying every weight by the same factor cannot change the sampling
+    distribution, so probabilities must be identical before and after.
+    """
+    p = Proportional(3)
+    p.update(np.arange(3), np.array([1.0, 2.0, 3.0]))
+    before = p.probs(np.arange(3))
+
+    p.scale(0.25)
+
+    assert np.allclose(p.probs(np.arange(3)), before)
+
+
+@pytest.mark.parametrize("factor", [0.0, float("nan")])
+def test_proportional_scale_rejects_invalid_factor(factor):
+    """
+    Zero and NaN factors would destroy or poison every weight, so they must
+    raise and leave the distribution untouched.
+    """
+    p = Proportional(3)
+    p.update(np.arange(3), np.array([1.0, 2.0, 3.0]))
+    before = p.probs(np.arange(3))
+
+    with pytest.raises(ValueError, match="scale factor must be finite and positive"):
+        p.scale(factor)
+
+    assert np.allclose(p.probs(np.arange(3)), before)
+
+
+def test_proportional_pickle_round_trip_keeps_scaled_weights():
+    """
+    A pickled scaled distribution must reload with its weights, not just its
+    probabilities, so later updates and totals stay consistent.
+    """
+    p = Proportional(3)
+    p.update(np.arange(3), np.array([1.0, 2.0, 3.0]))
+    p.scale(0.5)
+
+    q = pickle.loads(pickle.dumps(p))
+
+    assert np.allclose(q.tree.get_values(np.arange(3)), [0.5, 1.0, 1.5])
+    assert q.tree.total() == pytest.approx(3.0)
+    assert np.allclose(q.probs(np.arange(3)), p.probs(np.arange(3)))
+
+
 def test_pickle_from_v1_2_1_loads_and_updates():
     """
     Pickles written by the released 1.2.1 wheel must keep loading and
