@@ -7,11 +7,13 @@ use std::iter;
 mod dist;
 pub mod mixture;
 mod rng;
+mod segment;
 mod uniform_set;
 mod window;
 
 pub use dist::{Distribution, Proportional, Uniform};
 pub use rng::Rng;
+pub use segment::{Combine, Max, Min, SegmentTree};
 pub use uniform_set::UniformSet;
 pub use window::{Window, WindowMixture};
 
