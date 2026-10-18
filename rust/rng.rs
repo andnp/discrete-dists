@@ -6,7 +6,7 @@ use pyo3::{prelude::*, types::PyBytes};
 
 #[pyclass(module = "discrete_dists.rust")]
 pub struct Rng {
-    rng: CoreRng,
+    pub(crate) rng: CoreRng,
 }
 
 #[pymethods]

@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from discrete_dists import Proportional
+from discrete_dists import Proportional, Rng
 
 SIZE = 1_000_000
 BATCH = 32
@@ -15,14 +15,19 @@ def rng():
 
 
 @pytest.fixture
+def sampler():
+    return Rng(0)
+
+
+@pytest.fixture
 def p(rng: np.random.Generator):
     dist = Proportional(SIZE)
     dist.update(np.arange(SIZE), rng.uniform(0.1, 2.0, SIZE))
     return dist
 
 
-def test_sample_batch(p: Proportional, rng: np.random.Generator, benchmark):
-    benchmark(p.sample, rng, BATCH)
+def test_sample_batch(p: Proportional, sampler: Rng, benchmark):
+    benchmark(p.sample, sampler, BATCH)
 
 
 def test_update_single(p: Proportional, rng: np.random.Generator, benchmark):
@@ -57,12 +62,12 @@ def test_feed_loop(p: Proportional, rng: np.random.Generator, benchmark):
     benchmark(_feed_one_at_a_time, p, idxs, vals)
 
 
-def test_stratified_sample_batch(p: Proportional, rng: np.random.Generator, benchmark):
-    benchmark(p.stratified_sample, rng, BATCH)
+def test_stratified_sample_batch(p: Proportional, sampler: Rng, benchmark):
+    benchmark(p.stratified_sample, sampler, BATCH)
 
 
-def test_sample_without_replacement(p: Proportional, rng: np.random.Generator, benchmark):
-    benchmark(p.sample_without_replacement, rng, BATCH)
+def test_sample_without_replacement(p: Proportional, sampler: Rng, benchmark):
+    benchmark(p.sample_without_replacement, sampler, BATCH)
 
 
 def test_scale(p: Proportional, benchmark):

@@ -1,5 +1,6 @@
 import numpy as np
 
+from discrete_dists import Rng
 from discrete_dists.utils.SumTree import SumTree
 
 # ----------------
@@ -25,10 +26,10 @@ class TestBenchmarks:
         vals = rng.uniform(0, 2, size=10_000)
         tree.update(idxs, vals)
 
-        def _inner(tree: SumTree, rng):
-            tree.sample(rng, 32)
+        def _inner(tree: SumTree, sampler: Rng):
+            tree.sample(sampler, 32)
 
-        benchmark(_inner, tree, rng)
+        benchmark(_inner, tree, Rng(0))
 
     def test_sumtree_get_values(self, benchmark):
         tree = SumTree(100_000)

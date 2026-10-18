@@ -3,12 +3,13 @@ from pathlib import Path
 
 import pytest
 import numpy as np
+from discrete_dists import Rng
 from discrete_dists.proportional import Proportional
 
 
 @pytest.fixture
 def rng():
-    return np.random.default_rng(0)
+    return Rng(0)
 
 
 def test_proportional1(rng):
@@ -131,7 +132,7 @@ def test_proportional_sample_without_replacement_too_many(rng):
         np.array([1.0, 1.0]),
     )
 
-    with pytest.raises(ValueError, match="positive-mass elements"):
+    with pytest.raises(ValueError, match="cannot sample 3 unique elements"):
         p.sample_without_replacement(rng, 3)
 
 

@@ -1,12 +1,12 @@
 import numpy as np
 import pytest
 
-from discrete_dists import Categorical, MixtureDistribution, Proportional, SubDistribution, Uniform
+from discrete_dists import Categorical, MixtureDistribution, Proportional, Rng, SubDistribution, Uniform
 
 
 @pytest.fixture
 def rng():
-    return np.random.default_rng(0)
+    return Rng(0)
 
 
 def test_mixture_probs_sum_to_one_over_live_support():
