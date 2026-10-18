@@ -142,12 +142,35 @@ fn bench_scale(c: &mut Criterion) {
     group.finish();
 }
 
+fn bench_sample_grouped(c: &mut Criterion) {
+    let mut group = c.benchmark_group("sample_grouped");
+    let size = 1_000_000;
+    let batch = 1024;
+    let mut rng = XorShift(0x3C6E_F372_FE94_F82B);
+    let tree = filled_tree(size, &mut rng);
+    let mut sampler = Rng::new(0x5851_F42D_4C95_7F2D);
+    let mut out = vec![0i64; batch];
+
+    group.bench_function(
+        BenchmarkId::from_parameter(format!("{size}/{batch}")),
+        |b| {
+            b.iter(|| {
+                tree.sample_grouped(&mut sampler, 8, 4096, &mut out)
+                    .unwrap();
+                black_box(&out);
+            });
+        },
+    );
+    group.finish();
+}
+
 criterion_group!(
     benches,
     bench_update_single,
     bench_update_batch,
     bench_query,
     bench_sample,
+    bench_sample_grouped,
     bench_scale
 );
 criterion_main!(benches);
