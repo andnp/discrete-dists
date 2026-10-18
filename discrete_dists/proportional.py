@@ -1,7 +1,7 @@
 import numpy as np
 from discrete_dists._elements import as_elements
 from discrete_dists.distribution import Distribution, Support
-from discrete_dists.rust import Rng, proportional_probs
+from discrete_dists.rust import Rng, proportional_probs, proportional_update
 from discrete_dists.utils.SumTree import SumTree
 
 class Proportional(Distribution):
@@ -83,8 +83,12 @@ class Proportional(Distribution):
         Update the the proportion values for a given set
         of elements. This changes the shape of the distribution.
         """
-        elements = as_elements(elements) - self._support[0]
-        self.tree.update(elements, values)
+        proportional_update(
+            self._support[0],
+            self.tree,
+            as_elements(elements),
+            np.asarray(values, dtype=np.float64),
+        )
 
     def update_single(self, element: int, value: float):
         """
