@@ -13,7 +13,7 @@ This repository currently verifies cleanly with the following local sequence:
 - `.github/workflows/test.yml`
   - runs on pushes to `main` and pull requests targeting `main` only when code, tests, dependency manifests, or workflow files change
   - cancels superseded in-progress runs for the same branch or PR
-  - sets up Python 3.12, installs the project with `uv`, builds the Rust extension with `maturin develop --release`, then runs Ruff, Pyright, and pytest
+  - runs a `lint` job on Python 3.14 (Ruff, Pyright) and a `test` job that runs pytest on every supported Python from 3.10 to 3.15; both install from `uv.lock` and build the Rust extension with `maturin develop --release`
 - `.github/workflows/CI.yml`
   - runs on tags
   - repeats the test job before building wheels/sdist and uploading to PyPI

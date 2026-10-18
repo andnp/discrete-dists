@@ -14,7 +14,7 @@ permissions:
   contents: read
 
 jobs:
-  test:
+  lint:
     runs-on: ubuntu-latest
     steps:
       # setup the repository
@@ -39,11 +39,34 @@ jobs:
       # type checking
       - run: pyright
 
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14", "3.15"]
+    steps:
+      # setup the repository
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - run: |
+          uv sync --frozen --extra dev --no-install-project --python ${{ matrix.python-version }}
+          source .venv/bin/activate
+          maturin develop --release
+
+      - run: echo "$PWD/.venv/bin" >> $GITHUB_PATH
+
       - run: pytest tests/
 
   linux:
     runs-on: ${{ matrix.platform.runner }}
-    needs: [test]
+    needs: [lint, test]
     strategy:
       fail-fast: false
       matrix:
@@ -70,7 +93,7 @@ jobs:
 
   windows:
     runs-on: ${{ matrix.platform.runner }}
-    needs: [test]
+    needs: [lint, test]
     strategy:
       fail-fast: false
       matrix:
@@ -100,7 +123,7 @@ jobs:
 
   macos:
     runs-on: ${{ matrix.platform.runner }}
-    needs: [test]
+    needs: [lint, test]
     strategy:
       fail-fast: false
       matrix:
