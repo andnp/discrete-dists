@@ -4,6 +4,7 @@ from typing import Sequence
 
 import numpy as np
 
+from discrete_dists._elements import as_elements
 from discrete_dists.distribution import Distribution
 from discrete_dists.rust import Rng
 from discrete_dists.rust import WindowMixture as _RustWindowMixture
@@ -52,19 +53,19 @@ class WindowMixture(Distribution):
 
     def insert(self, elements, stamps, weights) -> None:
         self._inner.insert(
-            np.asarray(elements, dtype=np.int64),
+            as_elements(elements),
             np.asarray(stamps, dtype=np.float64),
             np.asarray(weights, dtype=np.float64),
         )
 
     def remove(self, elements) -> None:
-        self._inner.remove(np.asarray(elements, dtype=np.int64))
+        self._inner.remove(as_elements(elements))
 
     def advance(self, to: float) -> None:
         self._inner.advance(float(to))
 
     def probs(self, elements) -> np.ndarray:
-        return self._inner.probs(np.asarray(elements, dtype=np.int64))
+        return self._inner.probs(as_elements(elements))
 
     def sample(self, rng: Rng, n: int) -> np.ndarray:
         return self._inner.sample(rng, n)
