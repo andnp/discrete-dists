@@ -176,6 +176,22 @@ impl<T: Borrow<Tree>> Proportional<T> {
     pub fn get_values(&self, elements: &[i64]) -> Result<Vec<f64>, TreeError> {
         self.tree().get_values(&self.checked_offsets(elements)?)
     }
+
+    /// Groups are aligned to tree positions relative to `lo`, not to the element values themselves.
+    pub fn sample_grouped(
+        &self,
+        rng: &mut Rng,
+        groups: usize,
+        group_size: u32,
+        out: &mut [i64],
+    ) -> Result<(), TreeError> {
+        self.tree().sample_grouped(rng, groups, group_size, out)?;
+        for x in out {
+            *x += self.lo;
+        }
+
+        Ok(())
+    }
 }
 
 impl<T: BorrowMut<Tree>> Proportional<T> {
@@ -625,6 +641,26 @@ mod tests {
 
         assert_eq!(view.support(), (10, 15));
         assert!(out.iter().all(|&x| x == 11 || x == 13));
+    }
+
+    #[test]
+    fn proportional_sample_grouped_aligns_blocks_relative_to_lo() {
+        let mut p = Proportional::new(5, 21);
+        p.update(&(5..21).collect::<Vec<i64>>(), &[1.0; 16])
+            .unwrap();
+        let mut out = [0i64; 64];
+
+        for seed in 0..50 {
+            p.sample_grouped(&mut Rng::new(seed), 1, 4, &mut out)
+                .unwrap();
+
+            assert!(out.iter().all(|e| (5..21).contains(e)), "seed {seed}");
+            let block = (out[0] - 5) / 4;
+            assert!(
+                out.iter().all(|e| (e - 5) / 4 == block),
+                "seed {seed}: {out:?}"
+            );
+        }
     }
 
     #[test]
