@@ -1,7 +1,10 @@
 use crate::rng::Rng;
 use crate::uniform::uniform;
+use crate::uniform_set::UniformSet;
 use crate::utils::sumtree::{to_py_err, SumTree};
-use discrete_dists_core::{mixture, Distribution, Proportional, Tree, TreeError, Uniform};
+use discrete_dists_core::{
+    mixture, Distribution, Proportional, Tree, TreeError, Uniform, UniformSet as CoreUniformSet,
+};
 use numpy::{PyArray1, PyReadonlyArray1, ToPyArray};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
@@ -10,11 +13,13 @@ use pyo3::types::{PyAny, PyList};
 enum Source<'py> {
     Uniform(Uniform),
     Proportional(i64, PyRef<'py, SumTree>),
+    UniformSet(PyRef<'py, UniformSet>),
 }
 
 enum Part<'a> {
     Uniform(Uniform),
     Proportional(Proportional<&'a Tree>),
+    UniformSet(&'a CoreUniformSet),
 }
 
 impl Part<'_> {
@@ -22,6 +27,7 @@ impl Part<'_> {
         match self {
             Part::Uniform(u) => u,
             Part::Proportional(p) => p,
+            Part::UniformSet(s) => *s,
         }
     }
 }
@@ -40,6 +46,7 @@ fn parse_sources<'py>(parts: &Bound<'py, PyList>) -> PyResult<Vec<(Source<'py>, 
                     let (lo, tree): (i64, PyRef<'py, SumTree>) = payload.extract()?;
                     Source::Proportional(lo, tree)
                 }
+                "uniform_set" => Source::UniformSet(payload.extract()?),
                 other => {
                     return Err(PyValueError::new_err(format!(
                         "unknown mixture part kind {other:?}"
@@ -66,6 +73,7 @@ fn with_parts<R>(
                 Source::Proportional(lo, tree) => {
                     Part::Proportional(Proportional::from_tree(*lo, &tree.tree))
                 }
+                Source::UniformSet(set) => Part::UniformSet(&set.inner),
             };
 
             (part, *weight)
