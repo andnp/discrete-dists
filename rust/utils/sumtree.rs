@@ -9,7 +9,7 @@ use pyo3::{
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 
-#[pyclass(module = "rust", subclass, skip_from_py_object)]
+#[pyclass(module = "rust", subclass)]
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(transparent)]
 pub struct SumTree {
