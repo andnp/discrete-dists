@@ -9,6 +9,7 @@ on:
       - '.github/workflows/tag.yml'
       - 'discrete_dists/**'
       - 'rust/**'
+      - 'crates/**'
       - 'tests/**'
       - 'pyproject.toml'
       - 'Cargo.toml'
@@ -22,6 +23,7 @@ on:
       - '.github/workflows/tag.yml'
       - 'discrete_dists/**'
       - 'rust/**'
+      - 'crates/**'
       - 'tests/**'
       - 'pyproject.toml'
       - 'Cargo.toml'
@@ -91,3 +93,21 @@ jobs:
       - run: echo "$PWD/.venv/bin" >> $GITHUB_PATH
 
       - run: pytest tests/
+
+  rust:
+    if: github.event_name != 'push' || !startsWith(github.event.head_commit.message, 'bump:')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      # pyo3's build script needs an interpreter for clippy on the bindings crate
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - run: cargo fmt --check
+      - run: cargo clippy --workspace --all-targets --release -- -D warnings
+      - run: cargo test -p discrete-dists-core
