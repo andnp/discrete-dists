@@ -7,9 +7,11 @@ use std::iter;
 mod dist;
 pub mod mixture;
 mod rng;
+mod window;
 
 pub use dist::{Distribution, Proportional, Uniform};
 pub use rng::Rng;
+pub use window::{Window, WindowMixture};
 
 // Renormalize when the multiplier leaves this range, so stored weights stay far from overflow and underflow.
 const SCALE_MIN: f64 = 1e-100;
@@ -128,6 +130,7 @@ pub enum TreeError {
     InvalidSupport { reason: String },
     OutOfSupport { element: i64, lo: i64, hi: i64 },
     NotEnoughElements { requested: usize, found: usize },
+    InvalidWindow { reason: String },
 }
 
 impl fmt::Display for TreeError {
@@ -160,6 +163,7 @@ impl fmt::Display for TreeError {
                 f,
                 "cannot sample {requested} unique elements, found only {found}"
             ),
+            TreeError::InvalidWindow { reason } => write!(f, "invalid window: {reason}"),
         }
     }
 }
