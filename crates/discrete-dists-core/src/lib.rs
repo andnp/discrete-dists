@@ -6,12 +6,14 @@ use std::iter;
 
 mod dist;
 pub mod mixture;
+mod prioritized;
 mod rng;
 mod segment;
 mod uniform_set;
 mod window;
 
 pub use dist::{Distribution, Proportional, Uniform};
+pub use prioritized::Prioritized;
 pub use rng::Rng;
 pub use segment::{Combine, Max, Min, SegmentTree};
 pub use uniform_set::UniformSet;
@@ -135,6 +137,7 @@ pub enum TreeError {
     OutOfSupport { element: i64, lo: i64, hi: i64 },
     NotEnoughElements { requested: usize, found: usize },
     InvalidWindow { reason: String },
+    InvalidPriority { reason: String },
 }
 
 impl fmt::Display for TreeError {
@@ -168,6 +171,7 @@ impl fmt::Display for TreeError {
                 "cannot sample {requested} unique elements, found only {found}"
             ),
             TreeError::InvalidWindow { reason } => write!(f, "invalid window: {reason}"),
+            TreeError::InvalidPriority { reason } => write!(f, "invalid priority: {reason}"),
         }
     }
 }
