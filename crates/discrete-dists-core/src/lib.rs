@@ -121,6 +121,7 @@ pub enum TreeError {
     NegativeWeight { idx: i64, value: f64 },
     LengthMismatch { idxs: usize, values: usize },
     InvalidScale { factor: f64 },
+    EmptyDistribution,
 }
 
 impl fmt::Display for TreeError {
@@ -141,6 +142,9 @@ impl fmt::Display for TreeError {
             ),
             TreeError::InvalidScale { factor } => {
                 write!(f, "scale factor must be finite and positive, got {factor}")
+            }
+            TreeError::EmptyDistribution => {
+                write!(f, "cannot sample from a distribution with no mass")
             }
         }
     }
@@ -365,11 +369,47 @@ impl Tree {
             *idx = min(*idx, (self.size - 1) as i64);
         }
     }
+
+    fn sampling_total(&self) -> Result<f64, TreeError> {
+        let total = self.total();
+        if total <= 0.0 {
+            return Err(TreeError::EmptyDistribution);
+        }
+
+        Ok(total)
+    }
+
+    pub fn sample(&self, rng: &mut Rng, out: &mut [i64]) -> Result<(), TreeError> {
+        if out.is_empty() {
+            return Ok(());
+        }
+        let total = self.sampling_total()?;
+        let values: Vec<f64> = (0..out.len()).map(|_| rng.next_f64() * total).collect();
+        self.query(&values, out);
+
+        Ok(())
+    }
+
+    // One uniform per equal-mass stratum, so the draws cover the mass evenly.
+    pub fn stratified_sample(&self, rng: &mut Rng, out: &mut [i64]) -> Result<(), TreeError> {
+        if out.is_empty() {
+            return Ok(());
+        }
+        let total = self.sampling_total()?;
+        let n = out.len() as f64;
+        let values: Vec<f64> = (0..out.len())
+            .map(|j| ((j as f64 + rng.next_f64()) / n) * total)
+            .collect();
+        self.query(&values, out);
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::Rng;
     use proptest::collection::vec;
     use proptest::prelude::*;
 
@@ -476,6 +516,15 @@ mod tests {
     }
 
     #[test]
+    fn zero_draws_from_an_empty_tree_succeed() {
+        let tree = Tree::new(4);
+        let mut rng = Rng::new(0);
+
+        assert_eq!(tree.sample(&mut rng, &mut []), Ok(()));
+        assert_eq!(tree.stratified_sample(&mut rng, &mut []), Ok(()));
+    }
+
+    #[test]
     fn update_after_heavy_decay_stays_finite() {
         let mut tree = Tree::new(4);
         tree.update(&[0, 1], &[1.0, 2.0]).unwrap();
@@ -515,6 +564,93 @@ mod tests {
             );
         }
         assert!((back.total() - total_before).abs() <= 1e-12 * total_before);
+    }
+
+    #[test]
+    fn sampling_without_mass_errors_and_leaves_out_untouched() {
+        let mut zeroed = Tree::new(5);
+        zeroed.update(&[2], &[0.0]).unwrap();
+        let mut out = [-7i64; 4];
+        let mut rng = Rng::new(1);
+
+        for tree in [Tree::empty(), Tree::new(5), zeroed] {
+            assert_eq!(
+                tree.sample(&mut rng, &mut out),
+                Err(TreeError::EmptyDistribution)
+            );
+            assert_eq!(
+                tree.stratified_sample(&mut rng, &mut out),
+                Err(TreeError::EmptyDistribution)
+            );
+            assert_eq!(out, [-7; 4]);
+        }
+    }
+
+    #[test]
+    fn same_seed_gives_same_samples() {
+        let mut tree = Tree::new(8);
+        tree.update(&[0, 3, 5], &[1.0, 2.0, 4.0]).unwrap();
+        let mut a = [0i64; 64];
+        let mut b = [0i64; 64];
+
+        tree.sample(&mut Rng::new(42), &mut a).unwrap();
+        tree.sample(&mut Rng::new(42), &mut b).unwrap();
+
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn sample_frequencies_match_weights() {
+        let mut tree = Tree::new(4);
+        tree.update(&[0, 1, 2, 3], &[1.0, 2.0, 3.0, 4.0]).unwrap();
+        let n = 200_000;
+        let mut out = vec![0i64; n];
+
+        tree.sample(&mut Rng::new(3), &mut out).unwrap();
+
+        let mut counts = [0usize; 4];
+        for idx in out {
+            counts[idx as usize] += 1;
+        }
+        for (k, expected) in [0.1, 0.2, 0.3, 0.4].into_iter().enumerate() {
+            let freq = counts[k] as f64 / n as f64;
+            assert!((freq - expected).abs() < 0.02, "leaf {k}: got {freq}");
+        }
+    }
+
+    #[test]
+    fn stratified_sample_hits_each_equal_leaf_once_in_order() {
+        let mut tree = Tree::new(5);
+        tree.update(&[0, 1, 2, 3, 4], &[1.0; 5]).unwrap();
+        let mut out = [0i64; 5];
+
+        tree.stratified_sample(&mut Rng::new(9), &mut out).unwrap();
+
+        assert_eq!(out, [0, 1, 2, 3, 4]);
+    }
+
+    proptest! {
+        #[test]
+        fn samples_land_on_positive_leaves(
+            (size, ops) in ops(),
+            seed in any::<u64>(),
+            n in 0usize..=64,
+        ) {
+            let (tree, _) = build(size, &ops);
+            prop_assume!(tree.total() > 0.0);
+
+            type Sampler = fn(&Tree, &mut Rng, &mut [i64]) -> Result<(), TreeError>;
+            let samplers: [Sampler; 2] = [Tree::sample, Tree::stratified_sample];
+            for sampler in samplers {
+                let mut out = vec![-1i64; n];
+                sampler(&tree, &mut Rng::new(seed), &mut out).unwrap();
+
+                for idx in out {
+                    prop_assert!((0..size as i64).contains(&idx));
+                    prop_assert!(tree.get_value(idx).unwrap() > 0.0);
+                }
+            }
+        }
     }
 
     proptest! {

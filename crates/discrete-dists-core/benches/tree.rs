@@ -1,5 +1,5 @@
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
-use discrete_dists_core::Tree;
+use discrete_dists_core::{Rng, Tree};
 use std::hint::black_box;
 
 const SIZES: [u32; 2] = [10_000, 1_000_000];
@@ -105,6 +105,30 @@ fn bench_query(c: &mut Criterion) {
     group.finish();
 }
 
+fn bench_sample(c: &mut Criterion) {
+    let mut group = c.benchmark_group("sample");
+    for size in SIZES {
+        for batch in BATCHES {
+            let mut rng = XorShift(0x3C6E_F372_FE94_F82B);
+            let tree = filled_tree(size, &mut rng);
+            let mut sampler = Rng::new(0x5851_F42D_4C95_7F2D);
+            let mut out = vec![0i64; batch];
+
+            group.bench_with_input(
+                BenchmarkId::from_parameter(format!("{size}/{batch}")),
+                &batch,
+                |b, _| {
+                    b.iter(|| {
+                        tree.sample(&mut sampler, &mut out).unwrap();
+                        black_box(&out);
+                    });
+                },
+            );
+        }
+    }
+    group.finish();
+}
+
 fn bench_scale(c: &mut Criterion) {
     let mut group = c.benchmark_group("scale");
     for size in SIZES {
@@ -123,6 +147,7 @@ criterion_group!(
     bench_update_single,
     bench_update_batch,
     bench_query,
+    bench_sample,
     bench_scale
 );
 criterion_main!(benches);
