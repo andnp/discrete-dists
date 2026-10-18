@@ -1,4 +1,5 @@
 use crate::{Rng, Tree, TreeError};
+use std::borrow::{Borrow, BorrowMut};
 use std::collections::HashSet;
 use std::iter;
 
@@ -130,9 +131,9 @@ impl Distribution for Uniform {
 }
 
 #[derive(Clone)]
-pub struct Proportional {
+pub struct Proportional<T: Borrow<Tree> = Tree> {
     lo: i64,
-    tree: Tree,
+    tree: T,
 }
 
 impl Proportional {
@@ -144,17 +145,19 @@ impl Proportional {
             tree: Tree::new(width),
         }
     }
+}
+
+impl<T: Borrow<Tree>> Proportional<T> {
+    pub fn from_tree(lo: i64, tree: T) -> Self {
+        Proportional { lo, tree }
+    }
 
     pub fn support(&self) -> (i64, i64) {
-        (self.lo, self.lo + i64::from(self.tree.size()))
+        (self.lo, self.lo + i64::from(self.tree().size()))
     }
 
     pub fn tree(&self) -> &Tree {
-        &self.tree
-    }
-
-    pub fn tree_mut(&mut self) -> &mut Tree {
-        &mut self.tree
+        self.tree.borrow()
     }
 
     fn checked_offset(&self, element: i64) -> Result<i64, TreeError> {
@@ -170,13 +173,23 @@ impl Proportional {
         elements.iter().map(|&e| self.checked_offset(e)).collect()
     }
 
+    pub fn get_values(&self, elements: &[i64]) -> Result<Vec<f64>, TreeError> {
+        self.tree().get_values(&self.checked_offsets(elements)?)
+    }
+}
+
+impl<T: BorrowMut<Tree>> Proportional<T> {
+    pub fn tree_mut(&mut self) -> &mut Tree {
+        self.tree.borrow_mut()
+    }
+
     pub fn sample_without_replacement(
         &mut self,
         rng: &mut Rng,
         n: usize,
         out: &mut Vec<i64>,
     ) -> Result<(), TreeError> {
-        self.tree.sample_without_replacement(rng, n, out)?;
+        self.tree_mut().sample_without_replacement(rng, n, out)?;
         for x in out.iter_mut() {
             *x += self.lo;
         }
@@ -186,26 +199,22 @@ impl Proportional {
 
     pub fn update(&mut self, elements: &[i64], values: &[f64]) -> Result<(), TreeError> {
         let offsets = self.checked_offsets(elements)?;
-        self.tree.update(&offsets, values)
+        self.tree_mut().update(&offsets, values)
     }
 
     pub fn update_single(&mut self, element: i64, value: f64) -> Result<(), TreeError> {
-        self.tree
-            .update_single(self.checked_offset(element)?, value)
+        let offset = self.checked_offset(element)?;
+        self.tree_mut().update_single(offset, value)
     }
 
     pub fn scale(&mut self, factor: f64) -> Result<(), TreeError> {
-        self.tree.scale(factor)
-    }
-
-    pub fn get_values(&self, elements: &[i64]) -> Result<Vec<f64>, TreeError> {
-        self.tree.get_values(&self.checked_offsets(elements)?)
+        self.tree_mut().scale(factor)
     }
 
     /// Same width shifts the existing weights; a wider support must contain the old one so absolute weights are kept.
     pub fn update_support(&mut self, lo: i64, hi: i64) -> Result<(), TreeError> {
         let new_width = support_width(lo, hi)?;
-        let old_width = self.tree.size();
+        let old_width = self.tree().size();
 
         if new_width < old_width {
             return Err(TreeError::InvalidSupport {
@@ -230,26 +239,26 @@ impl Proportional {
         }
 
         let old_positions: Vec<i64> = (0..i64::from(old_width)).collect();
-        let values = self.tree.get_values(&old_positions)?;
+        let values = self.tree().get_values(&old_positions)?;
         let shift = self.lo - lo;
         let new_positions: Vec<i64> = old_positions.iter().map(|p| p + shift).collect();
 
         let mut tree = Tree::new(new_width);
         tree.update(&new_positions, &values)?;
-        self.tree = tree;
+        *self.tree_mut() = tree;
         self.lo = lo;
 
         Ok(())
     }
 }
 
-impl Distribution for Proportional {
+impl<T: Borrow<Tree>> Distribution for Proportional<T> {
     fn is_defunct(&self) -> bool {
-        self.tree.total() == 0.0
+        self.tree().total() == 0.0
     }
 
     fn sample(&self, rng: &mut Rng, out: &mut [i64]) -> Result<(), TreeError> {
-        self.tree.sample(rng, out)?;
+        self.tree().sample(rng, out)?;
         for x in out {
             *x += self.lo;
         }
@@ -258,7 +267,7 @@ impl Distribution for Proportional {
     }
 
     fn stratified_sample(&self, rng: &mut Rng, out: &mut [i64]) -> Result<(), TreeError> {
-        self.tree.stratified_sample(rng, out)?;
+        self.tree().stratified_sample(rng, out)?;
         for x in out {
             *x += self.lo;
         }
@@ -268,12 +277,11 @@ impl Distribution for Proportional {
 
     fn probs(&self, elements: &[i64], out: &mut [f64]) {
         assert_eq!(elements.len(), out.len());
-        let total = self.tree.total();
+        let tree = self.tree();
+        let total = tree.total();
         for (&element, p) in iter::zip(elements, out) {
             *p = if total > 0.0 {
-                self.tree
-                    .get_value(element - self.lo)
-                    .map_or(0.0, |w| w / total)
+                tree.get_value(element - self.lo).map_or(0.0, |w| w / total)
             } else {
                 0.0
             };
@@ -588,6 +596,19 @@ mod tests {
             })
         );
         assert_eq!(p.get_values(&[1, 2]).unwrap(), vec![1.0, 1.0]);
+    }
+
+    #[test]
+    fn proportional_view_samples_through_borrowed_tree() {
+        let mut tree = Tree::new(5);
+        tree.update(&[1, 3], &[1.0, 3.0]).unwrap();
+        let view = Proportional::from_tree(10, &tree);
+        let mut out = vec![0i64; 2_000];
+
+        view.sample(&mut Rng::new(9), &mut out).unwrap();
+
+        assert_eq!(view.support(), (10, 15));
+        assert!(out.iter().all(|&x| x == 11 || x == 13));
     }
 
     #[test]
