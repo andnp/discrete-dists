@@ -33,6 +33,8 @@ jobs:
 
       - run: echo "$PWD/.venv/bin" >> $GITHUB_PATH
 
+      - run: uv lock --check
+
       # linting
       - run: ruff check .
 
