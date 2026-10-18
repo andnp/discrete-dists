@@ -70,5 +70,9 @@ def test_sample_without_replacement(p: Proportional, sampler: Rng, benchmark):
     benchmark(p.sample_without_replacement, sampler, BATCH)
 
 
+def test_sample_grouped_batch(p: Proportional, sampler: Rng, benchmark):
+    benchmark(p.sample_grouped, sampler, BATCH, 8, 4096)
+
+
 def test_scale(p: Proportional, benchmark):
     benchmark(p.scale, 0.999)
