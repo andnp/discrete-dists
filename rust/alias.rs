@@ -8,7 +8,7 @@ use pyo3::{prelude::*, types::PyBytes};
 
 #[pyclass(module = "discrete_dists.rust")]
 pub struct Alias {
-    inner: CoreAlias,
+    pub(crate) inner: CoreAlias,
 }
 
 #[pymethods]
