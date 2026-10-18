@@ -68,6 +68,38 @@ def test_stratified_sample(rng):
     assert len(data) == 5
 
 
+def test_stratified_sample_wider_than_support(rng):
+    """
+    Stratified sampling must still produce n values when n exceeds the support
+    size, spreading them evenly across the support.
+    """
+    u = Uniform(5)
+
+    data = u.stratified_sample(rng, 10)
+
+    vals, counts = np.unique(data, return_counts=True)
+    assert np.all(vals == np.arange(5))
+    assert np.all(counts == 2)
+
+
+def test_stratified_sample_rejects_empty_support(rng):
+    with pytest.raises(ValueError, match="empty support"):
+        Uniform(0).stratified_sample(rng, 3)
+
+
+def test_stratified_sample_one_per_stratum_with_offset_support(rng):
+    """
+    Each stratified sample must fall in its own stratum of the support, so the
+    i-th sample lies in the i-th bucket.
+    """
+    u = Uniform((10, 110))
+
+    data = u.stratified_sample(rng, 10)
+
+    lo = 10 + 10 * np.arange(10)
+    assert np.all((data >= lo) & (data < lo + 10))
+
+
 def test_uniform_probs_respect_support():
     u = Uniform((10, 15))
 

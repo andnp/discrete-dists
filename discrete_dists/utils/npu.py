@@ -1,8 +1,10 @@
 import numpy as np
 
 def stratified_sample_integers(rng: np.random.Generator, n: int, lo: int, hi: int):
-    buckets = np.linspace(lo, hi, n + 1, endpoint=True, dtype=np.int64)
-    samples = [
-        rng.integers(buckets[i], buckets[i + 1]) for i in range(n)
-    ]
-    return np.asarray(samples, dtype=np.int64)
+    width = hi - lo
+    if width <= 0:
+        raise ValueError(f"cannot sample from empty support [{lo}, {hi})")
+
+    u = (np.arange(n) + rng.random(n)) / n
+    samples = lo + np.floor(u * width).astype(np.int64)
+    return np.minimum(samples, hi - 1)
