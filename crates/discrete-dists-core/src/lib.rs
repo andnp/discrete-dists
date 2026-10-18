@@ -4,6 +4,10 @@ use std::cmp::min;
 use std::fmt;
 use std::iter;
 
+mod rng;
+
+pub use rng::Rng;
+
 // Renormalize when the multiplier leaves this range, so stored weights stay far from overflow and underflow.
 const SCALE_MIN: f64 = 1e-100;
 const SCALE_MAX: f64 = 1e100;
