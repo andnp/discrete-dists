@@ -27,9 +27,7 @@ jobs:
         uses: astral-sh/setup-uv@v4
 
       - run: |
-          uv venv
-          uv pip compile --extra=dev pyproject.toml -o requirements.txt
-          uv pip sync requirements.txt
+          uv sync --frozen --extra dev --no-install-project
           source .venv/bin/activate
           maturin develop --release
 
