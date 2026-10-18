@@ -47,7 +47,7 @@ If PyO3 still resolves the wrong interpreter in a custom shell environment, expl
 
 ```bash
 env -u CARGO \
-  PYO3_ENVIRONMENT_SIGNATURE='cpython-3.12-64bit' \
+  PYO3_ENVIRONMENT_SIGNATURE='cpython-3.14-64bit' \
   PYO3_PYTHON="$PWD/.venv/bin/python" \
   PYTHON_SYS_EXECUTABLE="$PWD/.venv/bin/python" \
   cargo rustc --features pyo3/extension-module --manifest-path Cargo.toml --lib
