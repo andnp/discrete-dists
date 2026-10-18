@@ -185,3 +185,13 @@ class TestSumTree:
         result = tree.query(values)
 
         assert np.all(tree.get_values(result) > 0)
+
+    def test_corrupt_state_raises_value_error(self):
+        """
+        Corrupt pickle state must surface as a ValueError from the Python side,
+        not as an uncaught panic.
+        """
+        tree = SumTree(4)
+
+        with pytest.raises(ValueError, match="invalid SumTree state"):
+            tree.__setstate__({"st": b"\x00garbage"})
