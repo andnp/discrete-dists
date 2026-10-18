@@ -24,7 +24,9 @@ pub(crate) fn to_py_err(e: TreeError) -> PyErr {
     }
 }
 
-fn contiguous<'a, 'py, T: Element + Clone>(arr: &'a PyReadonlyArray1<'py, T>) -> Cow<'a, [T]> {
+pub(crate) fn contiguous<'a, 'py, T: Element + Clone>(
+    arr: &'a PyReadonlyArray1<'py, T>,
+) -> Cow<'a, [T]> {
     match arr.as_slice() {
         Ok(slice) => Cow::Borrowed(slice),
         Err(_) => Cow::Owned(arr.as_array().to_vec()),

@@ -6,6 +6,8 @@ from discrete_dists import (
     SubDistribution,
     Support,
     Uniform,
+    Window,
+    WindowMixture,
 )
 
 
@@ -16,4 +18,6 @@ def test_public_api_exports():
     assert MixtureDistribution.__name__ == "MixtureDistribution"
     assert SubDistribution.__name__ == "SubDistribution"
     assert Uniform.__name__ == "Uniform"
+    assert Window.__name__ == "Window"
+    assert WindowMixture.__name__ == "WindowMixture"
     assert Support == tuple[int, int]
