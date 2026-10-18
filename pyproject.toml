@@ -36,6 +36,7 @@ dev = [
     "maturin",
     "pip",
     "pytest-benchmark~=5.0",
+    "pytest-codspeed~=5.0",
     "ruff",
     "pyright",
     "commitizen",

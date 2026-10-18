@@ -1,0 +1,39 @@
+name: CodSpeed
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  benchmarks:
+    runs-on: ubuntu-latest
+    steps:
+      # setup the repository
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: 3.12
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - run: |
+          uv venv
+          uv pip compile --extra=dev pyproject.toml -o requirements.txt
+          uv pip sync requirements.txt
+          source .venv/bin/activate
+          maturin develop --release
+
+      - run: echo "$PWD/.venv/bin" >> $GITHUB_PATH
+
+      - uses: CodSpeedHQ/action@v5
+        with:
+          mode: simulation
+          run: pytest benches/ --codspeed
