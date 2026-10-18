@@ -75,6 +75,19 @@ class Proportional(Distribution):
         """
         return self.tree.sample_without_replacement(rng, n, offset=self._support[0])
 
+    def sample_grouped(self, rng: Rng, n: int, groups: int, group_size: int) -> np.ndarray:
+        """
+        Sample `n` values from at most `groups` aligned blocks of `group_size`
+        consecutive elements. Each block is picked in proportion to its mass,
+        then each value is picked in proportion to its weight within its block.
+
+        Each value's marginal probability is still `probs`, but values in one
+        batch are correlated because they share blocks. Blocks are aligned
+        relative to the start of the support, and `group_size` must be a power
+        of two.
+        """
+        return self.tree.sample_grouped(rng, n, groups, group_size, offset=self._support[0])
+
     # --------------
     # -- Updating --
     # --------------

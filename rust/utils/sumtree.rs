@@ -155,6 +155,27 @@ impl SumTree {
         Ok(out.to_pyarray(py))
     }
 
+    #[pyo3(signature = (rng, n, groups, group_size, offset = 0))]
+    pub fn sample_grouped<'py>(
+        &self,
+        mut rng: PyRefMut<'_, Rng>,
+        n: usize,
+        groups: usize,
+        group_size: u32,
+        offset: i64,
+        py: Python<'py>,
+    ) -> PyResult<Bound<'py, PyArray1<i64>>> {
+        let core = &mut rng.rng;
+        let mut out = vec![0i64; n];
+        py.detach(|| {
+            Proportional::from_tree(offset, &self.tree)
+                .sample_grouped(core, groups, group_size, &mut out)
+        })
+        .map_err(to_py_err)?;
+
+        Ok(out.to_pyarray(py))
+    }
+
     pub fn total(&self) -> f64 {
         self.tree.total()
     }
