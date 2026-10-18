@@ -246,15 +246,14 @@ impl SumTree {
 
     // enable pickling this data type
     pub fn __setstate__<'py>(&mut self, state: Bound<'py, PyBytes>) -> PyResult<()> {
-        *self = decode_from_slice(state.as_bytes(), bincode::config::standard())
-            .unwrap()
-            .0;
+        let (tree, _) = decode_from_slice(state.as_bytes(), bincode::config::standard())
+            .map_err(|e| PyValueError::new_err(format!("invalid SumTree state: {e}")))?;
+        *self = tree;
         Ok(())
     }
     pub fn __getstate__<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
-        Ok(PyBytes::new(
-            py,
-            &encode_to_vec(&self, bincode::config::standard()).unwrap(),
-        ))
+        let bytes = encode_to_vec(&self, bincode::config::standard())
+            .map_err(|e| PyValueError::new_err(format!("failed to serialize SumTree: {e}")))?;
+        Ok(PyBytes::new(py, &bytes))
     }
 }
