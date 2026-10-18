@@ -1,3 +1,15 @@
+## 1.2.2 (2026-10-18)
+
+### Fix
+
+- **distribution**: keep without-replacement samples in draw order
+- **sumtree**: raise ValueError on corrupt pickle state
+- **uniform**: allow stratified samples wider than the support
+- **sumtree**: never return zero-weight leaves from query
+- **sumtree**: recompute ancestors from children on update
+- **release**: sync Cargo.lock in the tag repair step
+- **release**: keep Cargo.lock in step with version bumps
+
 ## 1.2.1 (2026-03-10)
 
 ### Feat
