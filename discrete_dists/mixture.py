@@ -12,10 +12,12 @@ from discrete_dists.rust import (
     mixture_sample_without_replacement,
     mixture_stratified_sample,
 )
+from discrete_dists.rust import UniformSet as _RustUniformSet
 from discrete_dists.uniform import Uniform
+from discrete_dists.uniform_set import UniformSet
 from discrete_dists.utils.SumTree import SumTree
 
-_Part = tuple[str, tuple[int, int] | tuple[int, SumTree], float]
+_Part = tuple[str, tuple[int, int] | tuple[int, SumTree] | _RustUniformSet, float]
 
 
 @dataclass
@@ -30,7 +32,7 @@ class SubDistribution:
 
 def _unsupported(d: Distribution) -> TypeError:
     return TypeError(
-        "MixtureDistribution supports only Uniform and Proportional sub-distributions, "
+        "MixtureDistribution supports only Uniform, UniformSet and Proportional sub-distributions, "
         f"got {type(d).__name__}"
     )
 
@@ -50,7 +52,7 @@ class MixtureDistribution(Distribution):
         self._weights = np.array([sub.p for sub in dists])
 
         for d in self.dists:
-            if not isinstance(d, (Proportional, Uniform)):
+            if not isinstance(d, (Proportional, Uniform, UniformSet)):
                 raise _unsupported(d)
 
         assert np.isclose(self._weights.sum(), 1)
@@ -105,6 +107,8 @@ class MixtureDistribution(Distribution):
                 parts.append(("proportional", (d._support[0], d.tree), float(w)))
             elif isinstance(d, Uniform):
                 parts.append(("uniform", d._support, float(w)))
+            elif isinstance(d, UniformSet):
+                parts.append(("uniform_set", d._inner, float(w)))
             else:
                 raise _unsupported(d)
 
@@ -114,6 +118,8 @@ class MixtureDistribution(Distribution):
         """
         Update the the proportion values for a given set
         of elements. This changes the shape of the distribution.
+
+        UniformSet parts have no weights, so they are left unchanged.
         """
         for d in self.dists:
             if isinstance(d, Proportional):

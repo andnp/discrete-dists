@@ -67,20 +67,20 @@ def uniform_sample_without_replacement(rng: Rng, lo: int, hi: int, n: int) -> np
 
 def mixture_sample(
     rng: Rng,
-    parts: Sequence[tuple[str, tuple[int, int] | tuple[int, SumTree], float]],
+    parts: Sequence[tuple[str, tuple[int, int] | tuple[int, SumTree] | UniformSet, float]],
     n: int,
 ) -> np.ndarray: ...
 def mixture_stratified_sample(
     rng: Rng,
-    parts: Sequence[tuple[str, tuple[int, int] | tuple[int, SumTree], float]],
+    parts: Sequence[tuple[str, tuple[int, int] | tuple[int, SumTree] | UniformSet, float]],
     n: int,
 ) -> np.ndarray: ...
 def mixture_sample_without_replacement(
     rng: Rng,
-    parts: Sequence[tuple[str, tuple[int, int] | tuple[int, SumTree], float]],
+    parts: Sequence[tuple[str, tuple[int, int] | tuple[int, SumTree] | UniformSet, float]],
     n: int,
 ) -> np.ndarray: ...
 def mixture_probs(
-    parts: Sequence[tuple[str, tuple[int, int] | tuple[int, SumTree], float]],
+    parts: Sequence[tuple[str, tuple[int, int] | tuple[int, SumTree] | UniformSet, float]],
     elements: np.ndarray,
 ) -> np.ndarray: ...

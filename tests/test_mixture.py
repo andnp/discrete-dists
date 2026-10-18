@@ -5,6 +5,7 @@ from discrete_dists import Distribution
 from discrete_dists.mixture import MixtureDistribution, SubDistribution
 from discrete_dists.proportional import Proportional
 from discrete_dists.uniform import Uniform
+from discrete_dists.uniform_set import UniformSet
 
 
 class Custom(Distribution):
@@ -202,3 +203,47 @@ def test_sample_without_replacement_is_unbiased_by_value():
 
     assert all(len(np.unique(d)) == 500 for d in draws)
     assert abs(np.concatenate(draws).mean() - 499.5) < 4
+
+
+def test_uniform_set_and_proportional_probs_follow_shares():
+    s = UniformSet(10)
+    s.insert([1, 2])
+    p = Proportional(10)
+    p.update(np.array([5, 6]), np.array([1.0, 3.0]))
+
+    m = MixtureDistribution([
+        SubDistribution(s, p=0.5),
+        SubDistribution(p, p=0.5),
+    ])
+
+    np.testing.assert_allclose(m.probs(np.array([1, 2, 5, 6])), [0.25, 0.25, 0.125, 0.375])
+
+
+def test_samples_come_only_from_uniform_set_members_and_proportional_support():
+    s = UniformSet(10)
+    s.insert([1, 2])
+    p = Proportional(10)
+    p.update(np.array([5, 6]), np.array([1.0, 3.0]))
+    m = MixtureDistribution([
+        SubDistribution(s, p=0.5),
+        SubDistribution(p, p=0.5),
+    ])
+
+    for draws in (m.sample(Rng(0), 2000), m.stratified_sample(Rng(0), 2000)):
+        assert set(draws.tolist()) <= {1, 2, 5, 6}
+
+
+def test_update_leaves_uniform_set_part_unchanged():
+    s = UniformSet(10)
+    s.insert([1, 2])
+    p = Proportional(10)
+    p.update(np.array([5]), np.array([1.0]))
+    m = MixtureDistribution([
+        SubDistribution(s, p=0.5),
+        SubDistribution(p, p=0.5),
+    ])
+
+    m.update(np.array([7]), np.array([2.0]))
+
+    assert len(s) == 2
+    assert 7 not in s
