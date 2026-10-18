@@ -158,6 +158,58 @@ def test_proportional_update_outside_support_raises_index_error(element):
     assert p.tree.total() == 0
 
 
+def test_sample_grouped_touches_at_most_groups_blocks(rng):
+    p = Proportional(64)
+    p.update(np.arange(64), np.arange(1, 65, dtype=np.float64))
+
+    data = p.sample_grouped(rng, 500, 3, 8)
+
+    assert len(np.unique(data // 8)) <= 3
+
+
+def test_sample_grouped_marginals_match_probs(rng):
+    p = Proportional(8)
+    p.update(
+        np.array([0, 2, 4, 5, 6, 7]),
+        np.array([1.0, 2.0, 3.0, 4.0, 0.5, 1.5]),
+    )
+
+    # Values in one batch share blocks, so the marginals are checked across many small batches.
+    data = np.concatenate([p.sample_grouped(rng, 10, 2, 2) for _ in range(20_000)])
+    empirical = np.bincount(data, minlength=8) / len(data)
+
+    assert np.allclose(empirical, p.probs(np.arange(8)), atol=0.01)
+
+
+def test_sample_grouped_is_reproducible_for_a_seed():
+    p = Proportional(32)
+    p.update(np.arange(32), np.arange(1, 33, dtype=np.float64))
+
+    a = p.sample_grouped(Rng(7), 256, 4, 4)
+    b = p.sample_grouped(Rng(7), 256, 4, 4)
+
+    assert np.array_equal(a, b)
+
+
+@pytest.mark.parametrize("groups, group_size", [(0, 4), (2, 0), (2, 3)])
+def test_sample_grouped_rejects_invalid_arguments(rng, groups, group_size):
+    p = Proportional(8)
+    p.update(np.arange(8), np.ones(8))
+
+    with pytest.raises(ValueError, match="invalid groups"):
+        p.sample_grouped(rng, 4, groups, group_size)
+
+
+def test_sample_grouped_aligns_blocks_relative_to_support_start(rng):
+    p = Proportional((5, 21))
+    p.update(np.arange(5, 21), np.ones(16))
+
+    data = p.sample_grouped(rng, 64, 1, 4)
+
+    assert np.all(data >= 5) and np.all(data < 21)
+    assert len(np.unique((data - 5) // 4)) == 1
+
+
 def test_proportional_probs_are_zero_without_mass():
     p = Proportional((10, 15))
 
