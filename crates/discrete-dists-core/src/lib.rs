@@ -176,17 +176,24 @@ impl Tree {
     }
 
     fn set_validated_value(&mut self, checked_idx: usize, value: f64) {
+        let len = self.data.len();
         let mut i = self.total_size as usize + checked_idx;
-        self.data[i] = value;
+        debug_assert!(i < len);
+        // SAFETY: checked_index guarantees checked_idx < size <= total_size, so i < 2 * total_size == len.
+        unsafe { *self.data.get_unchecked_mut(i) = value };
 
         // Each parent is rebuilt as node + sibling rather than accumulating
         // deltas, so sums never drift; the new node value is already known,
         // so only the sibling needs reading.
         let mut node = value;
         while i > 1 {
-            node += self.data[i ^ 1];
+            debug_assert!(i ^ 1 < len);
+            // SAFETY: i < len and len is even, so flipping the low bit keeps i ^ 1 < len.
+            node += unsafe { *self.data.get_unchecked(i ^ 1) };
             i >>= 1;
-            self.data[i] = node;
+            debug_assert!(i < len);
+            // SAFETY: i was halved from a value below len and is at least 1, so it is in bounds.
+            unsafe { *self.data.get_unchecked_mut(i) = node };
         }
     }
 
@@ -271,8 +278,12 @@ impl Tree {
 
         for _ in 0..depth {
             for j in 0..n {
-                let idx = 2 * out[j] as usize;
-                let left = self.data[idx];
+                let node = out[j] as usize;
+                debug_assert!(node < total_size);
+                let idx = 2 * node;
+                debug_assert!(idx + 1 < self.data.len());
+                // SAFETY: node is an internal node (the walk starts at the root and descends depth levels), so node < total_size and idx + 1 < 2 * total_size == data.len().
+                let left = unsafe { *self.data.get_unchecked(idx) };
                 let m = values[j] - totals[j] >= left;
                 totals[j] += if m { left } else { 0. };
                 out[j] = (idx + m as usize) as i64;
