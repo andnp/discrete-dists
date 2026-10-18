@@ -1,5 +1,6 @@
 use pyo3::prelude::*;
 
+mod tree;
 mod utils;
 
 /// A Python module implemented in Rust.
