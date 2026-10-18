@@ -36,3 +36,14 @@ def test_probs_batch(m: MixtureDistribution, rng: np.random.Generator, benchmark
     idxs = rng.choice(SIZE, BATCH, replace=False)
 
     benchmark(m.probs, idxs)
+
+
+def test_stratified_sample_batch(m: MixtureDistribution, rng: np.random.Generator, benchmark):
+    benchmark(m.stratified_sample, rng, BATCH)
+
+
+def test_update_batch(m: MixtureDistribution, rng: np.random.Generator, benchmark):
+    idxs = rng.choice(SIZE, BATCH, replace=False)
+    vals = rng.uniform(0.1, 2.0, BATCH)
+
+    benchmark(m.update, idxs, vals)
