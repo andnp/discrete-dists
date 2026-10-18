@@ -152,3 +152,20 @@ def test_mixture_probs_disjoint_supports():
     probs = m.probs(np.array([0, 1, 10, 11, 50]))
 
     assert np.allclose(probs, np.array([0.1, 0.1, 0.1, 0.1, 0.0]))
+
+
+def test_sample_without_replacement_is_unbiased_by_value():
+    """
+    Without-replacement draws must not be biased toward small elements when the
+    first batch contains duplicates and the result is truncated.
+    """
+    m = MixtureDistribution([
+        SubDistribution(Uniform(1000), p=0.5),
+        SubDistribution(Uniform(1000), p=0.5),
+    ])
+    rng = np.random.default_rng(0)
+
+    draws = [m.sample_without_replacement(rng, 500) for _ in range(200)]
+
+    assert all(len(np.unique(d)) == 500 for d in draws)
+    assert abs(np.concatenate(draws).mean() - 499.5) < 4

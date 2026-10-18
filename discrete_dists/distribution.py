@@ -56,14 +56,14 @@ class Distribution:
         elements = self.sample(rng, n)
 
         # fastpath for the common case that the first sample is already unique
-        uniq = set(elements)
+        uniq = dict.fromkeys(elements.tolist())
         if len(uniq) == n:
             return elements
 
         for _ in range(attempts):
             needed = n - len(uniq)
             sub = self.sample(rng, 2 * needed)
-            uniq |= set(sub)
+            uniq.update(dict.fromkeys(sub.tolist()))
 
             if len(uniq) >= n:
                 break
@@ -74,8 +74,7 @@ class Distribution:
                 f"only found {len(uniq)}"
             )
 
-        out = np.array(list(uniq), dtype=np.int64)[:n]
-        return out
+        return np.fromiter(uniq, dtype=np.int64, count=len(uniq))[:n]
 
 
     @property
