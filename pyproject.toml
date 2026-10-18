@@ -53,12 +53,15 @@ version_files = ["pyproject.toml", "Cargo.toml"]
 features = ["pyo3/extension-module"]
 module-name = "discrete_dists.rust"
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
 [tool.ruff.lint]
 select = ['F', 'E', 'W']
 ignore = ['E501', 'E701']
 
 [tool.pyright]
-include = ["discrete_dists", "tests"]
+include = ["discrete_dists", "tests", "benches"]
 stubPath = "./typings"
 venvPath = "."
 venv = ".venv"
