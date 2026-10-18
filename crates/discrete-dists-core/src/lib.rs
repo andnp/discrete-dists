@@ -4,6 +4,10 @@ use std::cmp::min;
 use std::fmt;
 use std::iter;
 
+// Renormalize when the multiplier leaves this range, so stored weights stay far from overflow and underflow.
+const SCALE_MIN: f64 = 1e-100;
+const SCALE_MAX: f64 = 1e100;
+
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(try_from = "TreeWire", into = "TreeWire")]
 pub struct Tree {
@@ -11,6 +15,8 @@ pub struct Tree {
     total_size: u32,
     // Implicit binary heap: root at 1, children of i at 2i and 2i+1, leaf k at total_size + k.
     data: Vec<f64>,
+    // Multiplier applied to stored weights; kept out of TreeWire so pickles keep the historical format.
+    scale: f64,
 }
 
 // Field order and types are the pickle format; bincode encodes them positionally.
@@ -22,7 +28,11 @@ struct TreeWire {
 }
 
 impl From<Tree> for TreeWire {
-    fn from(tree: Tree) -> Self {
+    fn from(mut tree: Tree) -> Self {
+        if tree.scale != 1.0 {
+            tree.renormalize();
+        }
+
         let total = tree.total_size as usize;
         let raw = (0..)
             .map(|r| total >> r)
@@ -95,6 +105,7 @@ impl TryFrom<TreeWire> for Tree {
             size: wire.size,
             total_size: wire.total_size,
             data,
+            scale: 1.0,
         })
     }
 }
@@ -105,6 +116,7 @@ pub enum TreeError {
     NonFiniteWeight { idx: i64, value: f64 },
     NegativeWeight { idx: i64, value: f64 },
     LengthMismatch { idxs: usize, values: usize },
+    InvalidScale { factor: f64 },
 }
 
 impl fmt::Display for TreeError {
@@ -123,6 +135,9 @@ impl fmt::Display for TreeError {
                 f,
                 "idxs and values must have the same length, got {idxs} and {values}"
             ),
+            TreeError::InvalidScale { factor } => {
+                write!(f, "scale factor must be finite and positive, got {factor}")
+            }
         }
     }
 }
@@ -137,6 +152,7 @@ impl Tree {
             size,
             total_size,
             data: vec![0.0; 2 * total_size as usize],
+            scale: 1.0,
         }
     }
 
@@ -145,6 +161,7 @@ impl Tree {
             size: 0,
             total_size: 0,
             data: vec![],
+            scale: 1.0,
         }
     }
 
@@ -175,7 +192,14 @@ impl Tree {
         Ok(())
     }
 
-    fn set_validated_value(&mut self, checked_idx: usize, value: f64) {
+    fn set_validated_value(&mut self, checked_idx: usize, weight: f64) {
+        let mut value = weight / self.scale;
+        // A tiny multiplier can push a valid weight past f64 range; folding
+        // the multiplier back in first keeps every stored value finite.
+        if !value.is_finite() {
+            self.renormalize();
+            value = weight;
+        }
         let len = self.data.len();
         let mut i = self.total_size as usize + checked_idx;
         debug_assert!(i < len);
@@ -249,7 +273,7 @@ impl Tree {
     }
 
     pub fn get_value(&self, idx: i64) -> Result<f64, TreeError> {
-        Ok(self.data[self.total_size as usize + self.checked_index(idx)?])
+        Ok(self.data[self.total_size as usize + self.checked_index(idx)?] * self.scale)
     }
 
     pub fn get_values(&self, idxs: &[i64]) -> Result<Vec<f64>, TreeError> {
@@ -259,11 +283,43 @@ impl Tree {
             .map(|idx| self.checked_index(*idx))
             .collect::<Result<_, _>>()?;
 
-        Ok(idxs.iter().map(|&i| self.data[leaf_offset + i]).collect())
+        Ok(idxs
+            .iter()
+            .map(|&i| self.data[leaf_offset + i] * self.scale)
+            .collect())
     }
 
     pub fn total(&self) -> f64 {
-        self.data.get(1).copied().unwrap_or(0.0)
+        self.data.get(1).copied().unwrap_or(0.0) * self.scale
+    }
+
+    pub fn scale(&mut self, factor: f64) -> Result<(), TreeError> {
+        if !factor.is_finite() || factor <= 0.0 {
+            return Err(TreeError::InvalidScale { factor });
+        }
+
+        self.scale *= factor;
+        if !(SCALE_MIN..=SCALE_MAX).contains(&self.scale) {
+            self.renormalize();
+        }
+
+        Ok(())
+    }
+
+    fn renormalize(&mut self) {
+        let total = self.total_size as usize;
+        for leaf in &mut self.data[total..] {
+            *leaf *= self.scale;
+        }
+        self.scale = 1.0;
+        self.rebuild();
+    }
+
+    fn rebuild(&mut self) {
+        let total = self.total_size as usize;
+        for i in (1..total).rev() {
+            self.data[i] = self.data[2 * i] + self.data[2 * i + 1];
+        }
     }
 
     // `out` is the descent accumulator: it holds heap node indices, reset to the root before use.
@@ -272,9 +328,11 @@ impl Tree {
         let n = values.len();
         let total_size = self.total_size as usize;
         let depth = total_size.max(1).trailing_zeros();
+        // Query values arrive in true-weight units; the heap stores them
+        // divided by the multiplier.
+        let mut remaining: Vec<f64> = values.iter().map(|v| v / self.scale).collect();
 
         out.fill(1);
-        let mut totals = vec![0.0; n];
 
         for _ in 0..depth {
             for j in 0..n {
@@ -284,8 +342,8 @@ impl Tree {
                 debug_assert!(idx + 1 < self.data.len());
                 // SAFETY: node is an internal node (the walk starts at the root and descends depth levels), so node < total_size and idx + 1 < 2 * total_size == data.len().
                 let left = unsafe { *self.data.get_unchecked(idx) };
-                let m = values[j] - totals[j] >= left;
-                totals[j] += if m { left } else { 0. };
+                let m = remaining[j] >= left;
+                remaining[j] -= if m { left } else { 0. };
                 out[j] = (idx + m as usize) as i64;
             }
         }
@@ -293,7 +351,7 @@ impl Tree {
         for j in 0..n {
             let leaf = out[j] as usize - total_size;
             out[j] = if self.data[total_size + leaf] <= 0.0 {
-                self.descend_positive(values[j])
+                self.descend_positive(values[j] / self.scale)
             } else {
                 leaf as i64
             };
@@ -397,9 +455,67 @@ mod tests {
         assert!(Tree::try_from(wire).is_err());
     }
 
+    #[test]
+    fn scale_rejects_non_finite_or_nonpositive_factors_and_changes_nothing() {
+        let mut tree = Tree::new(3);
+        tree.update(&[0, 2], &[1.0, 3.0]).unwrap();
+
+        for factor in [0.0, -2.0, f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            let err = tree.scale(factor).unwrap_err();
+            assert!(
+                matches!(err, TreeError::InvalidScale { .. }),
+                "factor {factor}: got {err:?}"
+            );
+            assert_eq!(tree.get_values(&[0, 1, 2]).unwrap(), vec![1.0, 0.0, 3.0]);
+            assert_eq!(tree.total(), 4.0);
+        }
+    }
+
+    #[test]
+    fn update_after_heavy_decay_stays_finite() {
+        let mut tree = Tree::new(4);
+        tree.update(&[0, 1], &[1.0, 2.0]).unwrap();
+        tree.scale(1e-90).unwrap();
+        tree.update_single(2, 1e300).unwrap();
+
+        assert_eq!(tree.get_value(2).unwrap(), 1e300);
+        assert!(tree.total().is_finite());
+        assert!((tree.get_value(1).unwrap() / 2e-90 - 1.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn scaled_tree_round_trips_weights_and_resets_scale() {
+        let mut tree = Tree::new(5);
+        tree.update(&[0, 3, 4], &[1.5, 0.0, 2.0]).unwrap();
+        tree.scale(0.5).unwrap();
+        tree.scale(0.1).unwrap();
+        tree.update(&[1], &[4.0]).unwrap();
+
+        let idxs = [0, 1, 2, 3, 4];
+        let before = tree.get_values(&idxs).unwrap();
+        let total_before = tree.total();
+
+        let back = Tree::try_from(TreeWire::from(tree)).unwrap();
+
+        assert_eq!(back.scale, 1.0);
+        for (k, (after, expected)) in back
+            .get_values(&idxs)
+            .unwrap()
+            .iter()
+            .zip(&before)
+            .enumerate()
+        {
+            assert!(
+                (after - expected).abs() <= 1e-12 * expected.abs(),
+                "leaf {k}: got {after}, expected {expected}"
+            );
+        }
+        assert!((back.total() - total_before).abs() <= 1e-12 * total_before);
+    }
+
     proptest! {
         #[test]
-        fn internal_nodes_are_exact_child_sums_and_leaves_hold_last_write(
+        fn internal_nodes_are_exact_child_sums_and_unscaled_leaves_hold_last_write(
             (size, ops) in ops(),
         ) {
             let (tree, leaves) = build(size, &ops);
@@ -408,6 +524,7 @@ mod tests {
                 prop_assert_eq!(tree.data[i], tree.data[2 * i] + tree.data[2 * i + 1]);
             }
 
+            prop_assert_eq!(tree.scale, 1.0);
             prop_assert_eq!(leaf_slice(&tree).to_vec(), leaves);
         }
 
@@ -477,6 +594,77 @@ mod tests {
             };
             prop_assert!(kind_ok, "unexpected error {err:?} for defect {defect}");
             prop_assert_eq!(leaf_slice(&tree).to_vec(), before);
+        }
+    }
+
+    #[derive(Debug, Clone)]
+    enum ScaleOp {
+        Write(i64, f64),
+        Scale(f64),
+    }
+
+    fn scale_factor() -> impl Strategy<Value = f64> {
+        prop_oneof![
+            8 => 0.5..=1.5f64,
+            1 => Just(1e-60),
+            1 => Just(1e60),
+        ]
+    }
+
+    fn scale_ops(size: u32) -> impl Strategy<Value = Vec<ScaleOp>> {
+        let op = prop_oneof![
+            3 => pair(size).prop_map(|(idx, w)| ScaleOp::Write(idx, w)),
+            1 => scale_factor().prop_map(ScaleOp::Scale),
+        ];
+        vec(op, 0..=200)
+    }
+
+    fn approx_eq(actual: f64, expected: f64) -> bool {
+        (actual - expected).abs() <= (1e-9 * expected.abs()).max(1e-300)
+    }
+
+    proptest! {
+        #[test]
+        fn scaled_weights_match_model_and_query_stays_positive(
+            (size, ops) in (1u32..=64).prop_flat_map(|size| (Just(size), scale_ops(size))),
+        ) {
+            let mut tree = Tree::new(size);
+            let mut model = vec![0.0; size as usize];
+            for op in &ops {
+                match op {
+                    ScaleOp::Write(idx, w) => {
+                        tree.update_single(*idx, *w).unwrap();
+                        model[*idx as usize] = *w;
+                    }
+                    ScaleOp::Scale(factor) => {
+                        tree.scale(*factor).unwrap();
+                        let before = model.clone();
+                        for w in &mut model {
+                            *w *= factor;
+                        }
+                        // Past the normal f64 range the true weight has no faithful value to compare against.
+                        prop_assume!(before.iter().zip(&model).all(|(b, a)| *b == 0.0 || a.is_normal()));
+                    }
+                }
+            }
+
+            for (k, expected) in model.iter().enumerate() {
+                let actual = tree.get_value(k as i64).unwrap();
+                prop_assert!(approx_eq(actual, *expected), "leaf {k}: got {actual}, expected {expected}");
+            }
+            let expected_total: f64 = model.iter().sum();
+            prop_assert!(approx_eq(tree.total(), expected_total), "total: got {}, expected {expected_total}", tree.total());
+
+            let total = tree.total();
+            if total > 0.0 {
+                let values: Vec<f64> = (0..=8).map(|i| total * i as f64 / 8.0).collect();
+                let mut out = vec![0i64; values.len()];
+                tree.query(&values, &mut out);
+                for idx in out {
+                    prop_assert!((0..size as i64).contains(&idx));
+                    prop_assert!(model[idx as usize] > 0.0);
+                }
+            }
         }
     }
 }
