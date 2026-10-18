@@ -63,3 +63,7 @@ def test_stratified_sample_batch(p: Proportional, rng: np.random.Generator, benc
 
 def test_sample_without_replacement(p: Proportional, rng: np.random.Generator, benchmark):
     benchmark(p.sample_without_replacement, rng, BATCH)
+
+
+def test_scale(p: Proportional, benchmark):
+    benchmark(p.scale, 0.999)

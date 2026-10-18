@@ -105,10 +105,24 @@ fn bench_query(c: &mut Criterion) {
     group.finish();
 }
 
+fn bench_scale(c: &mut Criterion) {
+    let mut group = c.benchmark_group("scale");
+    for size in SIZES {
+        let mut rng = XorShift(0x7F4A_7C15_9E37_79B9);
+        let mut tree = filled_tree(size, &mut rng);
+
+        group.bench_with_input(BenchmarkId::from_parameter(size), &size, |b, _| {
+            b.iter(|| black_box(tree.scale(0.999)));
+        });
+    }
+    group.finish();
+}
+
 criterion_group!(
     benches,
     bench_update_single,
     bench_update_batch,
-    bench_query
+    bench_query,
+    bench_scale
 );
 criterion_main!(benches);
