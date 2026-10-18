@@ -1,83 +1,32 @@
+use crate::tree::{Tree, TreeError};
 use bincode::serde::{decode_from_slice, encode_to_vec};
-use ndarray::{Array1, Axis};
-use numpy::{PyArray1, PyReadonlyArray1, ToPyArray};
+use numpy::{Element, PyArray1, PyReadonlyArray1, ToPyArray};
 use pyo3::exceptions::{PyIndexError, PyValueError};
 use pyo3::{
     prelude::*,
     types::{PyBytes, PyTuple},
 };
 use serde::{Deserialize, Serialize};
-use std::cmp::*;
-use std::iter;
+use std::borrow::Cow;
 
 #[pyclass(module = "rust", subclass, skip_from_py_object)]
 #[derive(Serialize, Deserialize, Clone)]
-
+#[serde(transparent)]
 pub struct SumTree {
-    #[pyo3(get)]
-    size: u32,
-    total_size: u32,
-    raw: Vec<Array1<f64>>,
+    tree: Tree,
 }
 
-impl SumTree {
-    fn checked_index(&self, idx: i64) -> PyResult<usize> {
-        if idx < 0 || idx >= self.size as i64 {
-            return Err(PyIndexError::new_err(format!(
-                "index {idx} out of bounds for SumTree of size {}",
-                self.size,
-            )));
-        }
-
-        Ok(idx as usize)
+fn to_py_err(e: TreeError) -> PyErr {
+    match e {
+        TreeError::IndexOutOfBounds { .. } => PyIndexError::new_err(e.to_string()),
+        _ => PyValueError::new_err(e.to_string()),
     }
+}
 
-    fn validate_weight(idx: i64, value: f64) -> PyResult<()> {
-        if !value.is_finite() {
-            return Err(PyValueError::new_err(format!(
-                "value at index {idx} must be finite, got {value}",
-            )));
-        }
-
-        if value < 0.0 {
-            return Err(PyValueError::new_err(format!(
-                "value at index {idx} must be nonnegative, got {value}",
-            )));
-        }
-
-        Ok(())
-    }
-
-    fn set_validated_value(&mut self, checked_idx: usize, value: f64) {
-        self.raw[0][checked_idx] = value;
-
-        let mut sub_idx = checked_idx;
-        // Each parent is rebuilt as node + sibling rather than accumulating
-        // deltas, so sums never drift; the new node value is already known,
-        // so only the sibling needs reading.
-        let mut node = value;
-        for k in 1..self.raw.len() {
-            node += self.raw[k - 1][sub_idx ^ 1];
-            sub_idx /= 2;
-            self.raw[k][sub_idx] = node;
-        }
-    }
-
-    // Slow path for query: never steps into a zero-weight subtree, so it
-    // lands on a positive leaf whenever the tree has positive total.
-    fn descend_positive(&self, value: f64) -> i64 {
-        let mut idx = 0usize;
-        let mut total = 0.0;
-        for layer in self.raw.iter().rev().skip(1) {
-            idx *= 2;
-            let left = layer[idx];
-            let right = layer[idx + 1];
-            if right > 0.0 && (left == 0.0 || value - total >= left) {
-                total += left;
-                idx += 1;
-            }
-        }
-        idx as i64
+fn contiguous<'a, 'py, T: Element + Clone>(arr: &'a PyReadonlyArray1<'py, T>) -> Cow<'a, [T]> {
+    match arr.as_slice() {
+        Ok(slice) => Cow::Borrowed(slice),
+        Err(_) => Cow::Owned(arr.as_array().to_vec()),
     }
 }
 
@@ -88,30 +37,13 @@ impl SumTree {
     fn new<'py>(args: Bound<'py, PyTuple>) -> PyResult<Self> {
         match args.len() {
             0 => Ok(SumTree {
-                size: 0,
-                total_size: 0,
-                raw: vec![],
+                tree: Tree::empty(),
             }),
 
             1 => {
                 let size = args.get_item(0)?.extract::<u32>()?;
-
-                let total_size = u32::next_power_of_two(size);
-                let n_layers = u32::ilog2(total_size) + 1;
-
-                let dummy = Array1::<f64>::zeros(1);
-                let mut layers = vec![dummy; n_layers as usize];
-
-                for i in (0..n_layers).rev() {
-                    let r = n_layers - i - 1;
-                    let layer = Array1::<f64>::zeros(usize::pow(2, i));
-                    layers[r as usize] = layer;
-                }
-
                 Ok(SumTree {
-                    size,
-                    total_size,
-                    raw: layers,
+                    tree: Tree::new(size),
                 })
             }
 
@@ -121,50 +53,30 @@ impl SumTree {
         }
     }
 
+    #[getter]
+    fn size(&self) -> u32 {
+        self.tree.size()
+    }
+
     pub fn update(
         &mut self,
         idxs: PyReadonlyArray1<i64>,
         values: PyReadonlyArray1<f64>,
         py: Python<'_>,
     ) -> PyResult<()> {
-        let idxs = idxs.as_array();
-        let values = values.as_array();
+        let idxs = contiguous(&idxs);
+        let values = contiguous(&values);
 
-        if idxs.len() != values.len() {
-            return Err(PyValueError::new_err(format!(
-                "idxs and values must have the same length, got {} and {}",
-                idxs.len(),
-                values.len(),
-            )));
-        }
-
-        let validated = iter::zip(idxs, values)
-            .map(|(idx, value)| {
-                let checked_idx = self.checked_index(*idx)?;
-                Self::validate_weight(*idx, *value)?;
-                Ok((checked_idx, *value))
-            })
-            .collect::<PyResult<Vec<_>>>()?;
-
-        py.detach(|| {
-            for (checked_idx, value) in validated {
-                self.set_validated_value(checked_idx, value);
-            }
-        });
-
-        Ok(())
+        py.detach(|| self.tree.update(&idxs, &values))
+            .map_err(to_py_err)
     }
 
     pub fn update_single(&mut self, idx: i64, value: f64) -> PyResult<()> {
-        Self::validate_weight(idx, value)?;
-        let checked_idx = self.checked_index(idx)?;
-        self.set_validated_value(checked_idx, value);
-
-        Ok(())
+        self.tree.update_single(idx, value).map_err(to_py_err)
     }
 
     pub fn get_value(&self, idx: i64) -> PyResult<f64> {
-        Ok(self.raw[0][self.checked_index(idx)?])
+        self.tree.get_value(idx).map_err(to_py_err)
     }
 
     pub fn get_values<'py>(
@@ -172,19 +84,17 @@ impl SumTree {
         idxs: PyReadonlyArray1<i64>,
         py: Python<'py>,
     ) -> PyResult<Bound<'py, PyArray1<f64>>> {
-        let idxs: Vec<usize> = idxs
-            .as_array()
-            .iter()
-            .map(|idx| self.checked_index(*idx))
-            .collect::<PyResult<Vec<_>>>()?;
+        let idxs = contiguous(&idxs);
 
-        let values = py.detach(|| self.raw[0].select(Axis(0), &idxs).to_vec());
+        let values = py
+            .detach(|| self.tree.get_values(&idxs))
+            .map_err(to_py_err)?;
 
         Ok(values.to_pyarray(py))
     }
 
     pub fn total(&self) -> f64 {
-        *self.raw.last().expect("").get(0).expect("")
+        self.tree.total()
     }
 
     pub fn query<'py>(
@@ -196,52 +106,11 @@ impl SumTree {
             .len()
             .map_err(|_| PyValueError::new_err("failed to get query array length"))?;
 
-        if let Ok(values) = v.as_slice() {
-            let mut totals = Array1::<f64>::zeros(n);
-            let mut idxs = Array1::<i64>::zeros(n);
+        let values = contiguous(&v);
+        let mut out = vec![0i64; n];
+        self.tree.query(&values, &mut out);
 
-            for layer in self.raw.iter().rev().skip(1) {
-                for j in 0..n {
-                    idxs[j] *= 2;
-                    let left = layer[idxs[j] as usize];
-                    let m = values[j] - totals[j] >= left;
-                    totals[j] += if m { left } else { 0. };
-                    idxs[j] += if m { 1 } else { 0 };
-                }
-            }
-
-            for j in 0..n {
-                if self.raw[0][idxs[j] as usize] <= 0.0 {
-                    idxs[j] = self.descend_positive(values[j]);
-                }
-            }
-
-            idxs = idxs.map(|i| min(*i, (self.size - 1) as i64));
-            return Ok(idxs.to_vec().to_pyarray(py));
-        }
-
-        let v = v.as_array();
-        let mut totals = Array1::<f64>::zeros(n);
-        let mut idxs = Array1::<i64>::zeros(n);
-
-        for layer in self.raw.iter().rev().skip(1) {
-            for j in 0..n {
-                idxs[j] *= 2;
-                let left = layer[idxs[j] as usize];
-                let m = v[j] - totals[j] >= left;
-                totals[j] += if m { left } else { 0. };
-                idxs[j] += if m { 1 } else { 0 };
-            }
-        }
-
-        for j in 0..n {
-            if self.raw[0][idxs[j] as usize] <= 0.0 {
-                idxs[j] = self.descend_positive(v[j]);
-            }
-        }
-
-        idxs = idxs.map(|i| min(*i, (self.size - 1) as i64));
-        Ok(idxs.to_vec().to_pyarray(py))
+        Ok(out.to_pyarray(py))
     }
 
     // enable pickling this data type
