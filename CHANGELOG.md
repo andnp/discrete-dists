@@ -1,3 +1,9 @@
+## 1.2.3 (2026-10-18)
+
+### Fix
+
+- **ci**: give each job its own uv cache key
+
 ## 1.2.2 (2026-10-18)
 
 ### Fix
