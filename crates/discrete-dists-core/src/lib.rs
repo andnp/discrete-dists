@@ -4,6 +4,7 @@ use std::cmp::min;
 use std::fmt;
 use std::iter;
 
+mod alias;
 mod dist;
 pub mod mixture;
 mod prioritized;
@@ -12,6 +13,7 @@ mod segment;
 mod uniform_set;
 mod window;
 
+pub use alias::Alias;
 pub use dist::{Distribution, Proportional, Uniform};
 pub use prioritized::Prioritized;
 pub use rng::Rng;
