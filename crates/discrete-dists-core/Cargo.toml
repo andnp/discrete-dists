@@ -23,3 +23,7 @@ harness = false
 [[bench]]
 name = "window"
 harness = false
+
+[[bench]]
+name = "uniform_set"
+harness = false
