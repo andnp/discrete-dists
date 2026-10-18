@@ -62,6 +62,23 @@ impl SumTree {
             self.raw[k][sub_idx] = node;
         }
     }
+
+    // Slow path for query: never steps into a zero-weight subtree, so it
+    // lands on a positive leaf whenever the tree has positive total.
+    fn descend_positive(&self, value: f64) -> i64 {
+        let mut idx = 0usize;
+        let mut total = 0.0;
+        for layer in self.raw.iter().rev().skip(1) {
+            idx *= 2;
+            let left = layer[idx];
+            let right = layer[idx + 1];
+            if right > 0.0 && (left == 0.0 || value - total >= left) {
+                total += left;
+                idx += 1;
+            }
+        }
+        idx as i64
+    }
 }
 
 #[pymethods]
@@ -183,14 +200,19 @@ impl SumTree {
             let mut totals = Array1::<f64>::zeros(n);
             let mut idxs = Array1::<i64>::zeros(n);
 
-            for layer in self.raw.iter().rev() {
+            for layer in self.raw.iter().rev().skip(1) {
                 for j in 0..n {
-                    idxs[j] = idxs[j] * 2;
+                    idxs[j] *= 2;
                     let left = layer[idxs[j] as usize];
-
-                    let m = left < (values[j] - totals[j]);
+                    let m = values[j] - totals[j] >= left;
                     totals[j] += if m { left } else { 0. };
                     idxs[j] += if m { 1 } else { 0 };
+                }
+            }
+
+            for j in 0..n {
+                if self.raw[0][idxs[j] as usize] <= 0.0 {
+                    idxs[j] = self.descend_positive(values[j]);
                 }
             }
 
@@ -202,14 +224,19 @@ impl SumTree {
         let mut totals = Array1::<f64>::zeros(n);
         let mut idxs = Array1::<i64>::zeros(n);
 
-        for layer in self.raw.iter().rev() {
+        for layer in self.raw.iter().rev().skip(1) {
             for j in 0..n {
-                idxs[j] = idxs[j] * 2;
+                idxs[j] *= 2;
                 let left = layer[idxs[j] as usize];
-
-                let m = left < (v[j] - totals[j]);
+                let m = v[j] - totals[j] >= left;
                 totals[j] += if m { left } else { 0. };
                 idxs[j] += if m { 1 } else { 0 };
+            }
+        }
+
+        for j in 0..n {
+            if self.raw[0][idxs[j] as usize] <= 0.0 {
+                idxs[j] = self.descend_positive(v[j]);
             }
         }
 
