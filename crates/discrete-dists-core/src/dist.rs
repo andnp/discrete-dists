@@ -198,8 +198,24 @@ impl<T: BorrowMut<Tree>> Proportional<T> {
     }
 
     pub fn update(&mut self, elements: &[i64], values: &[f64]) -> Result<(), TreeError> {
-        let offsets = self.checked_offsets(elements)?;
-        self.tree_mut().update(&offsets, values)
+        if elements.len() != values.len() {
+            return Err(TreeError::LengthMismatch {
+                idxs: elements.len(),
+                values: values.len(),
+            });
+        }
+
+        // Every pair is checked before any is written, so a bad batch leaves the tree unchanged.
+        for (&element, &value) in iter::zip(elements, values) {
+            Tree::validate_weight(self.checked_offset(element)?, value)?;
+        }
+        let lo = self.lo;
+        let tree = self.tree_mut();
+        for (&element, &value) in iter::zip(elements, values) {
+            tree.set_validated_value((element - lo) as usize, value);
+        }
+
+        Ok(())
     }
 
     pub fn update_single(&mut self, element: i64, value: f64) -> Result<(), TreeError> {
