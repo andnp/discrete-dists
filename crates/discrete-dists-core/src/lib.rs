@@ -1,4 +1,4 @@
-use ndarray::{Array1, Axis};
+use ndarray::Array1;
 use serde::{Deserialize, Serialize};
 use std::cmp::min;
 use std::fmt;
@@ -9,7 +9,8 @@ use std::iter;
 pub struct Tree {
     size: u32,
     total_size: u32,
-    raw: Vec<Array1<f64>>,
+    // Implicit binary heap: root at 1, children of i at 2i and 2i+1, leaf k at total_size + k.
+    data: Vec<f64>,
 }
 
 // Field order and types are the pickle format; bincode encodes them positionally.
@@ -22,10 +23,17 @@ struct TreeWire {
 
 impl From<Tree> for TreeWire {
     fn from(tree: Tree) -> Self {
+        let total = tree.total_size as usize;
+        let raw = (0..)
+            .map(|r| total >> r)
+            .take_while(|&len| len > 0)
+            .map(|len| Array1::from_vec(tree.data[len..2 * len].to_vec()))
+            .collect();
+
         TreeWire {
             size: tree.size,
             total_size: tree.total_size,
-            raw: tree.raw,
+            raw,
         }
     }
 }
@@ -74,10 +82,19 @@ impl TryFrom<TreeWire> for Tree {
             }
         }
 
+        let total = wire.total_size as usize;
+        let mut data = vec![0.0; 2 * total];
+        for (r, layer) in wire.raw.iter().enumerate() {
+            let len = total >> r;
+            for (dst, src) in data[len..2 * len].iter_mut().zip(layer.iter()) {
+                *dst = *src;
+            }
+        }
+
         Ok(Tree {
             size: wire.size,
             total_size: wire.total_size,
-            raw: wire.raw,
+            data,
         })
     }
 }
@@ -115,21 +132,11 @@ impl std::error::Error for TreeError {}
 impl Tree {
     pub fn new(size: u32) -> Self {
         let total_size = u32::next_power_of_two(size);
-        let n_layers = u32::ilog2(total_size) + 1;
-
-        let dummy = Array1::<f64>::zeros(1);
-        let mut layers = vec![dummy; n_layers as usize];
-
-        for i in (0..n_layers).rev() {
-            let r = n_layers - i - 1;
-            let layer = Array1::<f64>::zeros(usize::pow(2, i));
-            layers[r as usize] = layer;
-        }
 
         Tree {
             size,
             total_size,
-            raw: layers,
+            data: vec![0.0; 2 * total_size as usize],
         }
     }
 
@@ -137,7 +144,7 @@ impl Tree {
         Tree {
             size: 0,
             total_size: 0,
-            raw: vec![],
+            data: vec![],
         }
     }
 
@@ -169,35 +176,38 @@ impl Tree {
     }
 
     fn set_validated_value(&mut self, checked_idx: usize, value: f64) {
-        self.raw[0][checked_idx] = value;
+        let mut i = self.total_size as usize + checked_idx;
+        self.data[i] = value;
 
-        let mut sub_idx = checked_idx;
         // Each parent is rebuilt as node + sibling rather than accumulating
         // deltas, so sums never drift; the new node value is already known,
         // so only the sibling needs reading.
         let mut node = value;
-        for k in 1..self.raw.len() {
-            node += self.raw[k - 1][sub_idx ^ 1];
-            sub_idx /= 2;
-            self.raw[k][sub_idx] = node;
+        while i > 1 {
+            node += self.data[i ^ 1];
+            i >>= 1;
+            self.data[i] = node;
         }
     }
 
     // Slow path for query: never steps into a zero-weight subtree, so it
     // lands on a positive leaf whenever the tree has positive total.
     fn descend_positive(&self, value: f64) -> i64 {
-        let mut idx = 0usize;
+        let total_size = self.total_size as usize;
+        let mut node = 1usize;
         let mut total = 0.0;
-        for layer in self.raw.iter().rev().skip(1) {
-            idx *= 2;
-            let left = layer[idx];
-            let right = layer[idx + 1];
+        while node < total_size {
+            let idx = 2 * node;
+            let left = self.data[idx];
+            let right = self.data[idx + 1];
             if right > 0.0 && (left == 0.0 || value - total >= left) {
                 total += left;
-                idx += 1;
+                node = idx + 1;
+            } else {
+                node = idx;
             }
         }
-        idx as i64
+        (node - total_size) as i64
     }
 
     pub fn update(&mut self, idxs: &[i64], values: &[f64]) -> Result<(), TreeError> {
@@ -232,44 +242,50 @@ impl Tree {
     }
 
     pub fn get_value(&self, idx: i64) -> Result<f64, TreeError> {
-        Ok(self.raw[0][self.checked_index(idx)?])
+        Ok(self.data[self.total_size as usize + self.checked_index(idx)?])
     }
 
     pub fn get_values(&self, idxs: &[i64]) -> Result<Vec<f64>, TreeError> {
+        let leaf_offset = self.total_size as usize;
         let idxs: Vec<usize> = idxs
             .iter()
             .map(|idx| self.checked_index(*idx))
             .collect::<Result<_, _>>()?;
 
-        Ok(self.raw[0].select(Axis(0), &idxs).to_vec())
+        Ok(idxs.iter().map(|&i| self.data[leaf_offset + i]).collect())
     }
 
     pub fn total(&self) -> f64 {
-        *self.raw.last().expect("").get(0).expect("")
+        self.data.get(1).copied().unwrap_or(0.0)
     }
 
-    // `out` is the descent accumulator, so it is reset to the root before use.
+    // `out` is the descent accumulator: it holds heap node indices, reset to the root before use.
     pub fn query(&self, values: &[f64], out: &mut [i64]) {
         assert_eq!(values.len(), out.len());
         let n = values.len();
+        let total_size = self.total_size as usize;
+        let depth = total_size.max(1).trailing_zeros();
 
-        out.fill(0);
+        out.fill(1);
         let mut totals = vec![0.0; n];
 
-        for layer in self.raw.iter().rev().skip(1) {
+        for _ in 0..depth {
             for j in 0..n {
-                out[j] *= 2;
-                let left = layer[out[j] as usize];
+                let idx = 2 * out[j] as usize;
+                let left = self.data[idx];
                 let m = values[j] - totals[j] >= left;
                 totals[j] += if m { left } else { 0. };
-                out[j] += if m { 1 } else { 0 };
+                out[j] = (idx + m as usize) as i64;
             }
         }
 
         for j in 0..n {
-            if self.raw[0][out[j] as usize] <= 0.0 {
-                out[j] = self.descend_positive(values[j]);
-            }
+            let leaf = out[j] as usize - total_size;
+            out[j] = if self.data[total_size + leaf] <= 0.0 {
+                self.descend_positive(values[j])
+            } else {
+                leaf as i64
+            };
         }
 
         for idx in out.iter_mut() {
@@ -339,17 +355,22 @@ mod tests {
         (tree, leaves)
     }
 
-    fn leaf_sum(tree: &Tree) -> f64 {
-        tree.raw[0].iter().sum()
+    fn leaf_slice(tree: &Tree) -> &[f64] {
+        let total = tree.total_size as usize;
+        &tree.data[total..2 * total]
     }
 
     #[test]
     fn wire_round_trip_preserves_levels() {
         let mut tree = Tree::new(5);
         tree.update(&[0, 3, 4], &[1.5, 0.0, 2.0]).unwrap();
-        let before: Vec<Vec<f64>> = tree.raw.iter().map(|l| l.to_vec()).collect();
+        let before: Vec<Vec<f64>> = TreeWire::from(tree.clone())
+            .raw
+            .iter()
+            .map(|l| l.to_vec())
+            .collect();
 
-        let back = Tree::try_from(TreeWire::from(tree)).unwrap();
+        let back = TreeWire::from(Tree::try_from(TreeWire::from(tree)).unwrap());
 
         let after: Vec<Vec<f64>> = back.raw.iter().map(|l| l.to_vec()).collect();
         assert_eq!(after, before);
@@ -372,16 +393,11 @@ mod tests {
         ) {
             let (tree, leaves) = build(size, &ops);
 
-            for k in 1..tree.raw.len() {
-                for i in 0..tree.raw[k].len() {
-                    prop_assert_eq!(
-                        tree.raw[k][i],
-                        tree.raw[k - 1][2 * i] + tree.raw[k - 1][2 * i + 1]
-                    );
-                }
+            for i in 1..tree.total_size as usize {
+                prop_assert_eq!(tree.data[i], tree.data[2 * i] + tree.data[2 * i + 1]);
             }
 
-            prop_assert_eq!(tree.raw[0].to_vec(), leaves);
+            prop_assert_eq!(leaf_slice(&tree).to_vec(), leaves);
         }
 
         #[test]
@@ -391,8 +407,8 @@ mod tests {
             let (tree, _) = build(size, &ops);
             let total = tree.total();
 
-            prop_assert_eq!(total, *tree.raw.last().unwrap().first().unwrap());
-            let sum = leaf_sum(&tree);
+            prop_assert_eq!(total, tree.data[1]);
+            let sum: f64 = leaf_slice(&tree).iter().sum();
             let diff = (total - sum).abs();
             prop_assert!(diff <= 1e-12 || diff <= 1e-9 * sum.abs());
         }
@@ -426,7 +442,7 @@ mod tests {
             defect in 0..4u8,
         ) {
             let (mut tree, _) = build(size, &ops);
-            let before = tree.raw[0].to_vec();
+            let before = leaf_slice(&tree).to_vec();
 
             let mut pairs: Vec<(i64, f64)> = batch
                 .into_iter()
@@ -449,7 +465,7 @@ mod tests {
                 _ => matches!(err, TreeError::NegativeWeight { .. }),
             };
             prop_assert!(kind_ok, "unexpected error {err:?} for defect {defect}");
-            prop_assert_eq!(tree.raw[0].to_vec(), before);
+            prop_assert_eq!(leaf_slice(&tree).to_vec(), before);
         }
     }
 }
