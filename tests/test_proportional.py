@@ -1,3 +1,6 @@
+import pickle
+from pathlib import Path
+
 import pytest
 import numpy as np
 from discrete_dists.proportional import Proportional
@@ -183,3 +186,24 @@ def test_proportional_update_support_rejects_ambiguous_widen():
 
     with pytest.raises(ValueError, match="must contain the existing support"):
         p.update_support((12, 18))
+
+
+def test_pickle_from_v1_2_1_loads_and_updates():
+    """
+    Pickles written by the released 1.2.1 wheel must keep loading and
+    updating after core refactors. The fixture pins the bytes that a real
+    1.2.1 install produces, so a change to the pickled layout fails here.
+    """
+    path = Path(__file__).parent / "fixtures" / "proportional_v1_2_1.pkl"
+    with open(path, "rb") as f:
+        p = pickle.load(f)
+
+    weights = np.array([0.5, 1.0, 0.0, 2.0, 3.0, 0.0, 1.5, 4.0])
+    assert np.allclose(p.probs(np.arange(10, 18)), weights / 12.0)
+    assert p.tree.total() == 12.0
+
+    p.update(np.array([12]), np.array([6.0]))
+
+    new_weights = weights.copy()
+    new_weights[2] = 6.0
+    assert np.allclose(p.probs(np.arange(10, 18)), new_weights / 18.0)
