@@ -5,6 +5,7 @@ use std::fmt;
 use std::iter;
 
 mod dist;
+pub mod mixture;
 mod rng;
 
 pub use dist::{Distribution, Proportional, Uniform};
@@ -126,6 +127,7 @@ pub enum TreeError {
     EmptyDistribution,
     InvalidSupport { reason: String },
     OutOfSupport { element: i64, lo: i64, hi: i64 },
+    NotEnoughElements { requested: usize, found: usize },
 }
 
 impl fmt::Display for TreeError {
@@ -154,6 +156,10 @@ impl fmt::Display for TreeError {
             TreeError::OutOfSupport { element, lo, hi } => {
                 write!(f, "element {element} is outside support [{lo}, {hi})")
             }
+            TreeError::NotEnoughElements { requested, found } => write!(
+                f,
+                "cannot sample {requested} unique elements, found only {found}"
+            ),
         }
     }
 }
